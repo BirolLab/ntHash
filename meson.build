@@ -28,7 +28,11 @@ lib_dep = declare_dependency(
     include_directories: include_dirs,
 )
 
-install_headers('include/nthash/nthash.hpp', install_dir: 'include/nthash')
+install_headers(
+  'include/nthash/nthash.hpp', 
+  'include/nthash/internal.hpp',
+  'include/nthash/kmer.hpp',
+  install_dir: 'include/nthash')
 
 if get_option('buildtype') != 'release'
     executable(
@@ -50,7 +54,7 @@ endif
 doxygen = find_program('doxygen', required: false)
 if doxygen.found()
     message('Doxygen found')
-    run_target('docs', command: [meson.source_root() + '/update-docs.sh'])
+    run_target('docs', command: [meson.project_source_root() + '/update-docs.sh'])
 else
     warning('Documentation disabled without doxygen')
 endif
