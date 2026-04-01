@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <iostream>
 #include <limits>
+#include <cstdint>
 
 namespace nthash {
 
