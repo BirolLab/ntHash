@@ -54,6 +54,9 @@
     -altera-id-dependent-backward-branch,
     -clang-diagnostic-unused-command-line-argument,
     -clang-diagnostic-unneeded-internal-declaration,
+    -llvm-prefer-static-over-anonymous-namespace,
+    -readability-math-missing-parentheses,
+    -misc-include-cleaner,
     -readability-identifier-length',
   WarningsAsErrors: '*',
   CheckOptions: [
