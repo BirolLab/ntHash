@@ -94,13 +94,13 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
   <div class="headertitle"><div class="title">ntHash </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="md_README"></a> <a href="https://github.com/bcgsc/ntHash/releases"><img src="https://img.shields.io/github/release/bcgsc/ntHash.svg" alt="Release" style="pointer-events: none;" class="inline"/></a> <a href="https://github.com/bcgsc/ntHash/archive/master.zip"><img src="https://img.shields.io/github/downloads/bcgsc/ntHash/total?logo=github" alt="Downloads" class="inline"/></a> <a href="https://github.com/bcgsc/ntHash/issues"><img src="https://img.shields.io/github/issues/bcgsc/ntHash.svg" alt="Issues" style="pointer-events: none;" class="inline"/></a></p>
+<div class="textblock"><p><a class="anchor" id="md_README"></a> <a href="https://github.com/BirolLab/ntHash/releases"><img src="https://img.shields.io/github/release/BirolLab/ntHash.svg" alt="Release" style="pointer-events: none;" class="inline"/></a> <a href="https://github.com/BirolLab/ntHash/archive/master.zip"><img src="https://img.shields.io/github/downloads/BirolLab/ntHash/total?logo=github" alt="Downloads" class="inline"/></a> <a href="https://github.com/BirolLab/ntHash/issues"><img src="https://img.shields.io/github/issues/BirolLab/ntHash.svg" alt="Issues" style="pointer-events: none;" class="inline"/></a></p>
 <p><img src="nthash-logo.png" alt="Logo" class="inline"/></p>
 <p>ntHash is an efficient rolling hash function for k-mers and spaced seeds.</p>
 <h1><a class="anchor" id="autotoc_md0"></a>
 Installation</h1>
 <p>Make sure <a href="https://mesonbuild.com/">Meson</a> is installed on the system.</p>
-<p>Download the repo (either from the releases section or close using <code>git clone <a href="https://github.com/bcgsc/ntHash">https://github.com/bcgsc/ntHash</a></code>). Setup meson in an arbitrary directory (e.g. <code>build</code>), by running the following command in the project's root (include <code>--prefix=PREFIX</code> set the installation prefix to <code>PREFIX</code>):</p>
+<p>Download the repo (either from the releases section or close using <code>git clone <a href="https://github.com/BirolLab/ntHash">https://github.com/BirolLab/ntHash</a></code>). Setup meson in an arbitrary directory (e.g. <code>build</code>), by running the following command in the project's root (include <code>--prefix=PREFIX</code> set the installation prefix to <code>PREFIX</code>):</p>
 <div class="fragment"><div class="line">meson setup --buildtype=release --prefix=PREFIX build</div>
 </div><!-- fragment --><p>Then, install the project and its dependencies using:</p>
 <div class="fragment"><div class="line">meson install -C build </div>
@@ -114,7 +114,7 @@ Usage</h1>
 <li>Link the code with <code>libnthash.a</code> (i.e. pass <code>-LPREFIX/lib -lnthash</code> to the compiler, where <code>PREFIX</code> is the installation prefix)</li>
 <li>Compile your code with <code>-std=c++17</code> (and preferably <code>-O3</code>) enabled</li>
 </ul>
-<p>Refer to <a href="https://bcgsc.github.io/ntHash/">docs</a> for more information.</p>
+<p>Refer to <a href="https://birollab.github.io/ntHash/">docs</a> for more information.</p>
 <h1><a class="anchor" id="autotoc_md2"></a>
 Examples</h1>
 <p>Generally, the <code><a class="el" href="classnthash_1_1NtHash.html">nthash::NtHash</a></code> and <code><a class="el" href="classnthash_1_1SeedNtHash.html">nthash::SeedNtHash</a></code> classes are used for hashing sequences:</p>

@@ -1,6 +1,6 @@
-[![Release](https://img.shields.io/github/release/bcgsc/ntHash.svg)](https://github.com/bcgsc/ntHash/releases)
-[![Downloads](https://img.shields.io/github/downloads/bcgsc/ntHash/total?logo=github)](https://github.com/bcgsc/ntHash/archive/master.zip)
-[![Issues](https://img.shields.io/github/issues/bcgsc/ntHash.svg)](https://github.com/bcgsc/ntHash/issues)
+[![Release](https://img.shields.io/github/release/BirolLab/ntHash.svg)](https://github.com/BirolLab/ntHash/releases)
+[![Downloads](https://img.shields.io/github/downloads/BirolLab/ntHash/total?logo=github)](https://github.com/BirolLab/ntHash/archive/master.zip)
+[![Issues](https://img.shields.io/github/issues/BirolLab/ntHash.svg)](https://github.com/BirolLab/ntHash/issues)
 
 ![Logo](nthash-logo.png)
 
@@ -10,7 +10,7 @@ ntHash is an efficient rolling hash function for k-mers and spaced seeds.
 
 Make sure [Meson](https://mesonbuild.com/) is installed on the system.
 
-Download the repo (either from the releases section or close using `git clone https://github.com/bcgsc/ntHash`). Setup meson in an arbitrary directory (e.g. `build`), by running the following command in the project's root (include `--prefix=PREFIX` set the installation prefix to `PREFIX`):
+Download the repo (either from the releases section or close using `git clone https://github.com/BirolLab/ntHash`). Setup meson in an arbitrary directory (e.g. `build`), by running the following command in the project's root (include `--prefix=PREFIX` set the installation prefix to `PREFIX`):
 
 ```shell
 meson setup --buildtype=release --prefix=PREFIX build
@@ -33,7 +33,7 @@ To use ntHash in a C++ project:
 - Link the code with `libnthash.a` (i.e. pass `-LPREFIX/lib -lnthash` to the compiler, where `PREFIX` is the installation prefix)
 - Compile your code with `-std=c++17` (and preferably `-O3`) enabled
 
-Refer to [docs](https://bcgsc.github.io/ntHash/) for more information.
+Refer to [docs](https://birollab.github.io/ntHash/) for more information.
 
 # Examples
 
