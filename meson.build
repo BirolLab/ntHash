@@ -41,7 +41,7 @@ if get_option('buildtype') != 'release'
         'nthash',
         'tests/tests.cpp',
         dependencies: [lib_dep],
-        include_directories: include_dirs,
+        include_directories: include_dirs + ['src/'],
         install: true,
     )
     test('tests', test_exec)

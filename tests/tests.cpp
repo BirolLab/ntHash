@@ -1,3 +1,4 @@
+#include "internal.hpp"
 #include "nthash/nthash.hpp"
 
 #include <chrono>
@@ -39,6 +40,31 @@
   for (unsigned i = 0; i < size; i++) {                                        \
     TEST_ASSERT_EQ(x[i], y[i])                                                 \
   }
+
+int
+calculate_rank(std::vector<uint64_t>& matrix)
+{
+  int rank = 0;
+  for (int col = 63; col >= 0 && rank < 64; --col) {
+    int pivot = -1;
+    for (int row = rank; row < 64; ++row) {
+      if ((matrix[row] >> col) & 1) {
+        pivot = row;
+        break;
+      }
+    }
+    if (pivot == -1)
+      continue;
+    std::swap(matrix[rank], matrix[pivot]);
+    for (int row = rank + 1; row < 64; ++row) {
+      if ((matrix[row] >> col) & 1) {
+        matrix[row] ^= matrix[rank];
+      }
+    }
+    rank++;
+  }
+  return rank;
+}
 
 int
 main()
@@ -460,6 +486,21 @@ main()
       can_roll |= seed.roll();
       TEST_ASSERT_ARRAY_EQ(kmer.hashes(), seed.hashes(), h)
     }
+  }
+
+  {
+    PRINT_TEST_NAME("seed matrix rank for collisions")
+    uint64_t xor_result = nthash::SEED_A ^ nthash::SEED_C ^ nthash::SEED_G;
+    TEST_ASSERT_EQ(nthash::SEED_T, xor_result)
+    std::vector<uint64_t> matrix(64, 0);
+    uint64_t u = nthash::SEED_A ^ nthash::SEED_C;
+    uint64_t v = nthash::SEED_A ^ nthash::SEED_G;
+    for (int i = 0; i < 32; ++i) {
+      matrix[i] = nthash::srol(u, i);
+      matrix[i + 32] = nthash::srol(v, i);
+    }
+    int rank = calculate_rank(matrix);
+    TEST_ASSERT_EQ(rank, 64)
   }
 
   return 0;
