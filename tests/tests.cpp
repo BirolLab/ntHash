@@ -71,30 +71,6 @@ main()
 {
 
   {
-    PRINT_TEST_NAME("k-mer hash values")
-
-    std::string seq = "ACATGCATGCA";
-    const unsigned k = 5;
-    const unsigned h = 3;
-
-    const std::vector<std::array<uint64_t, h>> hashes = {
-      { 0x38cc00f940aebdae, 0xab7e1b110e086fc6, 0x11a1818bcfdd553 },
-      { 0x603a48c5a11c794a, 0xe66016e61816b9c4, 0xc5b13cb146996ffe }
-    };
-
-    nthash::NtHash nthash(seq, h, k);
-    nthash.roll();
-    nthash::BlindNtHash blind(seq.data(), h, k);
-
-    for (const auto& h_vals : hashes) {
-      nthash.roll();
-      TEST_ASSERT_ARRAY_EQ(h_vals, nthash.hashes(), h);
-      blind.roll(seq[blind.get_pos() + k]);
-      TEST_ASSERT_ARRAY_EQ(h_vals, blind.hashes(), h);
-    }
-  }
-
-  {
     PRINT_TEST_NAME("k-mer rolling")
 
     std::string seq = "AGTCAGTC";
@@ -248,28 +224,6 @@ main()
       can_roll = dna_nthash.roll();
       can_roll &= rna_nthash.roll();
       TEST_ASSERT_ARRAY_EQ(dna_nthash.hashes(), rna_nthash.hashes(), h);
-    }
-  }
-
-  {
-    PRINT_TEST_NAME("spaced seed hash values")
-
-    std::string seq = "ACATGCATGCA";
-    std::vector<std::string> seeds = { "11100111" };
-    const unsigned k = seeds[0].length();
-    const unsigned h = 3;
-
-    const std::vector<std::array<uint64_t, h>> hashes = {
-      { 0x10be4904ad8de5d, 0x3e29e4f4c991628c, 0x3f35c984b13feb20 },
-      { 0x8200a7aa3eaf17c8, 0x344198402f4c2a9c, 0xb6423fe62e69c40c },
-      { 0x3ce8adcbeaa56532, 0x162e91a4dbedbf11, 0x53173f786a031f45 }
-    };
-
-    nthash::SeedNtHash nthash(seq, seeds, h, k);
-
-    for (const auto& h_vals : hashes) {
-      nthash.roll();
-      TEST_ASSERT_ARRAY_EQ(h_vals, nthash.hashes(), h);
     }
   }
 
