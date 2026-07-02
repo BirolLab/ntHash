@@ -15,7 +15,7 @@ namespace nthash {
  * are different from the previous version. Useful for tracking differences in
  * saved hashes, e.g., in Bloom filters.
  */
-static const char* const NTHASH_FN_NAME = "ntHash_v2";
+static const char* const NTHASH_FN_NAME = "ntHash_v2.5";
 
 /**
  * This lets us minimize NtHash object size. Good for performance if it's
