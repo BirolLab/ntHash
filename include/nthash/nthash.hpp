@@ -84,7 +84,7 @@ public:
    * @param k K-mer size
    * @param pos Position in sequence to start hashing from
    */
-  NtHash(const std::string& seq,
+  NtHash(std::string_view seq,
          typedefs::NUM_HASHES_TYPE num_hashes,
          typedefs::K_TYPE k,
          size_t pos = 0)
@@ -340,7 +340,7 @@ public:
    * @param k K-mer size
    * @param pos Position in seq to start hashing from
    */
-  SeedNtHash(const std::string& seq,
+  SeedNtHash(std::string_view seq,
              const std::vector<std::string>& seeds,
              typedefs::NUM_HASHES_TYPE num_hashes_per_seed,
              typedefs::K_TYPE k,
@@ -375,7 +375,7 @@ public:
    * @param k K-mer size
    * @param pos Position in seq to start hashing from
    */
-  SeedNtHash(const std::string& seq,
+  SeedNtHash(std::string_view seq,
              const std::vector<std::vector<unsigned>>& seeds,
              typedefs::NUM_HASHES_TYPE num_hashes_per_seed,
              typedefs::K_TYPE k,
