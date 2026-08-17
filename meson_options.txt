@@ -1,0 +1,1 @@
+option('develop', type: 'boolean', value: false, description: 'Enable developer mode (builds tests, benchmarks, and codegen targets)')

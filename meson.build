@@ -30,7 +30,9 @@ lib_dep = declare_dependency(
 
 install_headers('include/nthash/nthash.hpp', install_dir: 'include/nthash')
 
-if get_option('buildtype') != 'release'
+if get_option('develop')
+    message('Developer mode enabled')
+
     executable(
         'bench',
         'examples/benchmark.cpp',
@@ -45,12 +47,14 @@ if get_option('buildtype') != 'release'
         install: true,
     )
     test('tests', test_exec)
+
+    doxygen = find_program('doxygen', required: false)
+    if doxygen.found()
+        message('Doxygen found')
+        run_target('docs', command: [meson.source_root() + '/update-docs.sh'])
+    else
+        warning('Documentation disabled without doxygen')
+    endif
+
 endif
 
-doxygen = find_program('doxygen', required: false)
-if doxygen.found()
-    message('Doxygen found')
-    run_target('docs', command: [meson.source_root() + '/update-docs.sh'])
-else
-    warning('Documentation disabled without doxygen')
-endif
