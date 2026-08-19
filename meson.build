@@ -15,11 +15,16 @@ python3 = find_program('python3', required: true)
 clang_format = find_program('clang-format', required: true)
 
 nthash_headers = files(
-  'src/kmer.hpp',
+  'src/internal/internal.hpp',
+  'src/internal/tables.hpp',
+  'src/internal/utils.hpp',
+  'src/kmer/blind.hpp',
+  'src/kmer/nthash.hpp',
+  'src/kmer/utils.hpp',
+  'src/seed/blind.hpp',
+  'src/seed/seed.hpp',
+  'src/seed/utils.hpp',
   'src/nthash.hpp',
-  'src/seed.hpp',
-  'src/tables.hpp',
-  'src/utils.hpp'
 )
 
 single_header = custom_target(

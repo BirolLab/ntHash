@@ -3,7 +3,7 @@
 #include <array>
 #include <cstdint>
 
-namespace nthash::tables {
+namespace nthash::internal {
 
 // 64-bit random seeds corresponding to bases and their complements
 constexpr uint64_t SEED_A = 0x3eb13b9046685257;
@@ -18,7 +18,7 @@ constexpr uint8_t CP_OFF = 0x07;
 constexpr int ASCII_SIZE = 256;
 
 [[nodiscard]] constexpr std::array<uint64_t, ASCII_SIZE>
-generate_seed_tab() noexcept
+generate_seed_table() noexcept
 {
   std::array<uint64_t, ASCII_SIZE> tab{};
   tab['A'] = tab['a'] = SEED_A;
@@ -34,7 +34,7 @@ generate_seed_tab() noexcept
 }
 
 [[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
-generate_convert_tab() noexcept
+generate_convert_table() noexcept
 {
   std::array<uint8_t, ASCII_SIZE> tab{};
   for (auto& val : tab) {
@@ -48,7 +48,7 @@ generate_convert_tab() noexcept
 }
 
 [[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
-generate_rc_convert_tab() noexcept
+generate_rc_convert_table() noexcept
 {
   std::array<uint8_t, ASCII_SIZE> tab{};
   for (auto& val : tab) {
@@ -61,8 +61,8 @@ generate_rc_convert_tab() noexcept
   return tab;
 }
 
-alignas(64) inline constexpr auto SEED_TAB = generate_seed_tab();
-alignas(64) inline constexpr auto CONVERT_TAB = generate_convert_tab();
-alignas(64) inline constexpr auto RC_CONVERT_TAB = generate_rc_convert_tab();
+alignas(64) inline constexpr auto SEED_TAB = generate_seed_table();
+alignas(64) inline constexpr auto CONVERT_TAB = generate_convert_table();
+alignas(64) inline constexpr auto RC_CONVERT_TAB = generate_rc_convert_table();
 
-} // namespace nthash::tables
+} // namespace nthash::internal

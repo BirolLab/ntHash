@@ -5,7 +5,7 @@
 
 #include "tables.hpp"
 
-namespace nthash::utils {
+namespace nthash::internal {
 
 using HASH_TYPE = uint64_t;
 constexpr unsigned int HASH_BITS = sizeof(HASH_TYPE) * CHAR_BIT;
@@ -124,7 +124,7 @@ extend_hashes(HASH_TYPE fwd_hash,
 is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
 {
   for (size_t i = k; i-- > 0;) {
-    if (tables::SEED_TAB[(unsigned char)seq[i]] == tables::SEED_N) {
+    if (internal::SEED_TAB[(unsigned char)seq[i]] == internal::SEED_N) {
       pos_n = i;
       return true;
     }
@@ -132,4 +132,4 @@ is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
   return false;
 }
 
-} // namespace nthash::utils
+} // namespace nthash::internal
