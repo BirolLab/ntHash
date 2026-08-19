@@ -11,24 +11,39 @@ project(
     ],
 )
 
-include_dirs = [include_directories('include')]
+python3 = find_program('python3', required: true)
+clang_format = find_program('clang-format', required: true)
 
-sources = ['src/kmer.cpp', 'src/seed.cpp']
-
-nthash_lib = static_library(
-    'nthash',
-    sources,
-    include_directories: include_dirs,
-    install: true,
-    install_dir: 'lib',
+nthash_headers = files(
+  'src/kmer.hpp',
+  'src/nthash.hpp',
+  'src/seed.hpp',
+  'src/tables.hpp',
+  'src/utils.hpp'
 )
 
-lib_dep = declare_dependency(
-    link_with: nthash_lib,
-    include_directories: include_dirs,
+single_header = custom_target(
+  'single_header',
+  input: nthash_headers,
+  output: 'nthash.hpp.tmp',
+  command: [python3, files('scripts/amalgamate.py'), '@INPUT@'],
+  capture: true,
 )
 
-install_headers('include/nthash/nthash.hpp', install_dir: 'include/nthash')
+formatted_header = custom_target(
+  'formatted_header',
+  input: single_header,
+  output: 'nthash.hpp',
+  command: [clang_format, '--style=file', '@INPUT@'],
+  capture: true,           
+  install: true,           
+  install_dir: get_option('includedir')
+)
+
+nthash_dep = declare_dependency(
+  include_directories: include_directories('.'),
+  sources: formatted_header
+)
 
 if get_option('develop')
     message('Developer mode enabled')
@@ -36,25 +51,29 @@ if get_option('develop')
     executable(
         'bench',
         'examples/benchmark.cpp',
-        dependencies: [lib_dep],
-        include_directories: include_dirs,
+        dependencies: [nthash_dep],
     )
     test_exec = executable(
-        'nthash',
+        'tests',
         'tests/tests.cpp',
-        dependencies: [lib_dep],
-        include_directories: include_dirs + ['src/'],
-        install: true,
+        dependencies: [nthash_dep],
     )
     test('tests', test_exec)
 
     doxygen = find_program('doxygen', required: false)
     if doxygen.found()
-        message('Doxygen found')
-        run_target('docs', command: [meson.source_root() + '/update-docs.sh'])
+        custom_target(
+          'docs',
+          input: 'Doxyfile',
+          depends: formatted_header,
+          output: 'docs',
+          command: [doxygen, '@INPUT@'],
+          env: {'DOXY_NTHASH_INPUT': meson.current_build_dir() / 'nthash.hpp'},
+          build_by_default: true,
+          build_always_stale: true
+        )
     else
-        warning('Documentation disabled without doxygen')
+        warning('Documentation will not be updated without doxygen')
     endif
 
 endif
-

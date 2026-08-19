@@ -64,7 +64,7 @@ while (nth.roll()) {
 If you would like to contribute to the development of ntHash, after forking/cloning the repo, create the `build` directory without the release flag:
 
 ```
-meson setup build
+meson setup build -Ddevelop=true
 ```
 
 Compile the code, tests, and benchmarking script using:

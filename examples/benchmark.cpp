@@ -1,4 +1,4 @@
-#include <nthash/nthash.hpp>
+#include <nthash.hpp>
 
 #include <chrono>
 #include <fstream>
