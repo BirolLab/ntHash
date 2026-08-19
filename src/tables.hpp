@@ -1,9 +1,7 @@
 #pragma once
 
-#include <cstddef>
+#include <array>
 #include <cstdint>
-#include <iostream>
-#include <limits>
 
 namespace nthash::tables {
 
@@ -19,109 +17,52 @@ constexpr uint8_t CP_OFF = 0x07;
 
 constexpr int ASCII_SIZE = 256;
 
-const uint64_t SEED_TAB[ASCII_SIZE] = {
-  SEED_N, SEED_T, SEED_N, SEED_G, SEED_A, SEED_A, SEED_N, SEED_C, // 0..7
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 8..15
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 16..23
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 24..31
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 32..39
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 40..47
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 48..55
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 56..63
-  SEED_N, SEED_A, SEED_N, SEED_C, SEED_N, SEED_N, SEED_N, SEED_G, // 64..71
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 72..79
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_T, SEED_T, SEED_N, SEED_N, // 80..87
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 88..95
-  SEED_N, SEED_A, SEED_N, SEED_C, SEED_N, SEED_N, SEED_N, SEED_G, // 96..103
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 104..111
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_T, SEED_T, SEED_N, SEED_N, // 112..119
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 120..127
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 128..135
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 136..143
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 144..151
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 152..159
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 160..167
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 168..175
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 176..183
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 184..191
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 192..199
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 200..207
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 208..215
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 216..223
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 224..231
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 232..239
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, // 240..247
-  SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N, SEED_N  // 248..255
-};
+[[nodiscard]] constexpr std::array<uint64_t, ASCII_SIZE>
+generate_seed_tab() noexcept
+{
+  std::array<uint64_t, ASCII_SIZE> tab{};
+  tab['A'] = tab['a'] = SEED_A;
+  tab['C'] = tab['c'] = SEED_C;
+  tab['G'] = tab['g'] = SEED_G;
+  tab['T'] = tab['t'] = tab['U'] = tab['u'] = SEED_T;
+  tab['A' & CP_OFF] = SEED_T;
+  tab['C' & CP_OFF] = SEED_G;
+  tab['T' & CP_OFF] = SEED_A;
+  tab['U' & CP_OFF] = SEED_A;
+  tab['G' & CP_OFF] = SEED_C;
+  return tab;
+}
 
-const uint8_t CONVERT_TAB[ASCII_SIZE] = {
-  255, 255, 255, 255, 255, 255, 255, 255, // 0..7
-  255, 255, 255, 255, 255, 255, 255, 255, // 8..15
-  255, 255, 255, 255, 255, 255, 255, 255, // 16..23
-  255, 255, 255, 255, 255, 255, 255, 255, // 24..31
-  255, 255, 255, 255, 255, 255, 255, 255, // 32..39
-  255, 255, 255, 255, 255, 255, 255, 255, // 40..47
-  255, 255, 255, 255, 255, 255, 255, 255, // 48..55
-  255, 255, 255, 255, 255, 255, 255, 255, // 56..63
-  255, 0,   255, 1,   255, 255, 255, 2,   // 64..71
-  255, 255, 255, 255, 255, 255, 255, 255, // 72..79
-  255, 255, 255, 255, 3,   3,   255, 255, // 80..87
-  255, 255, 255, 255, 255, 255, 255, 255, // 88..95
-  255, 0,   255, 1,   255, 255, 255, 2,   // 96..103
-  255, 255, 255, 255, 255, 255, 255, 255, // 104..111
-  255, 255, 255, 255, 3,   3,   255, 255, // 112..119
-  255, 255, 255, 255, 255, 255, 255, 255, // 120..127
-  255, 255, 255, 255, 255, 255, 255, 255, // 128..135
-  255, 255, 255, 255, 255, 255, 255, 255, // 136..143
-  255, 255, 255, 255, 255, 255, 255, 255, // 144..151
-  255, 255, 255, 255, 255, 255, 255, 255, // 152..159
-  255, 255, 255, 255, 255, 255, 255, 255, // 160..167
-  255, 255, 255, 255, 255, 255, 255, 255, // 168..175
-  255, 255, 255, 255, 255, 255, 255, 255, // 176..183
-  255, 255, 255, 255, 255, 255, 255, 255, // 184..191
-  255, 255, 255, 255, 255, 255, 255, 255, // 192..199
-  255, 255, 255, 255, 255, 255, 255, 255, // 200..207
-  255, 255, 255, 255, 255, 255, 255, 255, // 208..215
-  255, 255, 255, 255, 255, 255, 255, 255, // 216..223
-  255, 255, 255, 255, 255, 255, 255, 255, // 224..231
-  255, 255, 255, 255, 255, 255, 255, 255, // 232..239
-  255, 255, 255, 255, 255, 255, 255, 255, // 240..247
-  255, 255, 255, 255, 255, 255, 255, 255  // 248..255
-};
+[[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
+generate_convert_tab() noexcept
+{
+  std::array<uint8_t, ASCII_SIZE> tab{};
+  for (auto& val : tab) {
+    val = 255;
+  }
+  tab['A'] = tab['a'] = 0;
+  tab['C'] = tab['c'] = 1;
+  tab['G'] = tab['g'] = 2;
+  tab['T'] = tab['t'] = tab['U'] = tab['u'] = 3;
+  return tab;
+}
 
-const uint8_t RC_CONVERT_TAB[ASCII_SIZE] = {
-  255, 255, 255, 255, 255, 255, 255, 255, // 0..7
-  255, 255, 255, 255, 255, 255, 255, 255, // 8..15
-  255, 255, 255, 255, 255, 255, 255, 255, // 16..23
-  255, 255, 255, 255, 255, 255, 255, 255, // 24..31
-  255, 255, 255, 255, 255, 255, 255, 255, // 32..39
-  255, 255, 255, 255, 255, 255, 255, 255, // 40..47
-  255, 255, 255, 255, 255, 255, 255, 255, // 48..55
-  255, 255, 255, 255, 255, 255, 255, 255, // 56..63
-  255, 3,   255, 2,   255, 255, 255, 1,   // 64..71
-  255, 255, 255, 255, 255, 255, 255, 255, // 72..79
-  255, 255, 255, 255, 0,   0,   255, 255, // 80..87
-  255, 255, 255, 255, 255, 255, 255, 255, // 88..95
-  255, 3,   255, 2,   255, 255, 255, 1,   // 96..103
-  255, 255, 255, 255, 255, 255, 255, 255, // 104..111
-  255, 255, 255, 255, 0,   0,   255, 255, // 112..119
-  255, 255, 255, 255, 255, 255, 255, 255, // 120..127
-  255, 255, 255, 255, 255, 255, 255, 255, // 128..135
-  255, 255, 255, 255, 255, 255, 255, 255, // 136..143
-  255, 255, 255, 255, 255, 255, 255, 255, // 144..151
-  255, 255, 255, 255, 255, 255, 255, 255, // 152..159
-  255, 255, 255, 255, 255, 255, 255, 255, // 160..167
-  255, 255, 255, 255, 255, 255, 255, 255, // 168..175
-  255, 255, 255, 255, 255, 255, 255, 255, // 176..183
-  255, 255, 255, 255, 255, 255, 255, 255, // 184..191
-  255, 255, 255, 255, 255, 255, 255, 255, // 192..199
-  255, 255, 255, 255, 255, 255, 255, 255, // 200..207
-  255, 255, 255, 255, 255, 255, 255, 255, // 208..215
-  255, 255, 255, 255, 255, 255, 255, 255, // 216..223
-  255, 255, 255, 255, 255, 255, 255, 255, // 224..231
-  255, 255, 255, 255, 255, 255, 255, 255, // 232..239
-  255, 255, 255, 255, 255, 255, 255, 255, // 240..247
-  255, 255, 255, 255, 255, 255, 255, 255  // 248..255
-};
+[[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
+generate_rc_convert_tab() noexcept
+{
+  std::array<uint8_t, ASCII_SIZE> tab{};
+  for (auto& val : tab) {
+    val = 255;
+  }
+  tab['A'] = tab['a'] = 3;
+  tab['C'] = tab['c'] = 2;
+  tab['G'] = tab['g'] = 1;
+  tab['T'] = tab['t'] = tab['U'] = tab['u'] = 0;
+  return tab;
+}
 
-} // namespace nthash
+alignas(64) inline constexpr auto SEED_TAB = generate_seed_tab();
+alignas(64) inline constexpr auto CONVERT_TAB = generate_convert_tab();
+alignas(64) inline constexpr auto RC_CONVERT_TAB = generate_rc_convert_tab();
+
+} // namespace nthash::tables
