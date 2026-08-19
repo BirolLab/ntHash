@@ -146,7 +146,7 @@ ntmsm64_init(const char* kmer_seq,
         const auto c = static_cast<unsigned char>(kmer_seq[pos]);
         const auto idx = tables::CONVERT_TAB[c];
         fh_seed ^= fwd_shift_table[k - 1 - pos][idx];
-        rh_seed ^= rev_shift_table[pos][tables::RC_CONVERT_TAB[c]];
+        rh_seed ^= rev_shift_table[pos][idx];
       }
     }
 
@@ -157,7 +157,7 @@ ntmsm64_init(const char* kmer_seq,
       const auto c = static_cast<unsigned char>(kmer_seq[pos]);
       const auto idx = tables::CONVERT_TAB[c];
       fh_seed ^= fwd_shift_table[k - 1 - pos][idx];
-      rh_seed ^= rev_shift_table[pos][tables::RC_CONVERT_TAB[c]];
+      rh_seed ^= rev_shift_table[pos][idx];
     }
 
     fh_val[i_seed] = fh_seed;
@@ -205,13 +205,11 @@ ntmsm64_forward_core(
 
       const auto idx_in = tables::CONVERT_TAB[char_in];
       const auto idx_out = tables::CONVERT_TAB[char_out];
-      const auto rc_in = tables::RC_CONVERT_TAB[char_in];
-      const auto rc_out = tables::RC_CONVERT_TAB[char_out];
 
       fh_seed ^= fwd_shift_table[k - i_out][idx_out];
       fh_seed ^= fwd_shift_table[k - i_in][idx_in];
-      rh_seed ^= rev_shift_table[i_out][rc_out];
-      rh_seed ^= rev_shift_table[i_in][rc_in];
+      rh_seed ^= rev_shift_table[i_out][idx_out];
+      rh_seed ^= rev_shift_table[i_in][idx_in];
     }
 
     rh_seed = utils::roll_back(rh_seed);
@@ -221,9 +219,8 @@ ntmsm64_forward_core(
     for (const auto pos : seeds_monomers[i_seed]) {
       const auto c = char_at(pos + 1);
       const auto idx = tables::CONVERT_TAB[c];
-      const auto rc = tables::RC_CONVERT_TAB[c];
       fh_seed ^= fwd_shift_table[k - 1 - pos][idx];
-      rh_seed ^= rev_shift_table[pos][rc];
+      rh_seed ^= rev_shift_table[pos][idx];
     }
 
     fh_val[i_seed] = fh_seed;
@@ -269,13 +266,11 @@ ntmsm64_backward_core(
 
       const auto idx_in = tables::CONVERT_TAB[char_in];
       const auto idx_out = tables::CONVERT_TAB[char_out];
-      const auto rc_in = tables::RC_CONVERT_TAB[char_in];
-      const auto rc_out = tables::RC_CONVERT_TAB[char_out];
 
       fh_seed ^= fwd_shift_table[k - i_out][idx_out];
       fh_seed ^= fwd_shift_table[k - i_in][idx_in];
-      rh_seed ^= rev_shift_table[i_out][rc_out];
-      rh_seed ^= rev_shift_table[i_in][rc_in];
+      rh_seed ^= rev_shift_table[i_out][idx_out];
+      rh_seed ^= rev_shift_table[i_in][idx_in];
     }
 
     fh_seed = utils::roll_back(fh_seed);
@@ -285,9 +280,8 @@ ntmsm64_backward_core(
     for (const auto pos : seeds_monomers[i_seed]) {
       const auto c = char_at(pos); // Fixed backward monomer index offset
       const auto idx = tables::CONVERT_TAB[c];
-      const auto rc = tables::RC_CONVERT_TAB[c];
       fh_seed ^= fwd_shift_table[k - 1 - pos][idx];
-      rh_seed ^= rev_shift_table[pos][rc];
+      rh_seed ^= rev_shift_table[pos][idx];
     }
 
     fh_val[i_seed] = fh_seed;
