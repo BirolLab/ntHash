@@ -1,7 +1,6 @@
 #pragma once
 
 #include <climits>
-#include <cstddef>
 #include <cstdint>
 
 #include "tables.hpp"
@@ -54,7 +53,8 @@ rotr(HASH_TYPE x, unsigned int r) noexcept
 [[nodiscard]] inline HASH_TYPE
 roll_next(HASH_TYPE hash_value) noexcept
 {
-  return rotl(hash_value, ROT_R) ^ (hash_value << SHIFT_C);
+  hash_value = rotl(hash_value, ROT_R);
+  return hash_value ^ (hash_value << SHIFT_C);
 }
 
 [[nodiscard]] inline HASH_TYPE
