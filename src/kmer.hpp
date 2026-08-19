@@ -350,8 +350,7 @@ public:
 
     fwd_hash =
       kmer::prev_forward_hash(fwd_hash, char_out, rev_in_mask[3 - in_loc]);
-    rev_hash =
-      kmer::prev_reverse_hash(rev_hash, fwd_out_mask[3 - out_loc], char_in);
+    rev_hash = kmer::prev_reverse_hash(rev_hash, rev_in_mask[out_loc], char_in);
     utils::extend_hashes(fwd_hash, rev_hash, k, num_hashes, hash_arr.get());
     --pos;
     return true;
@@ -432,7 +431,7 @@ public:
     const auto fwd =
       kmer::prev_forward_hash(fwd_hash, char_out, rev_in_mask[3 - in_loc]);
     const auto rev =
-      kmer::prev_reverse_hash(rev_hash, fwd_out_mask[3 - out_loc], char_in_u);
+      kmer::prev_reverse_hash(rev_hash, rev_in_mask[out_loc], char_in_u);
     utils::extend_hashes(fwd, rev, k, num_hashes, hash_arr.get());
     return true;
   }
@@ -552,7 +551,7 @@ public:
     const auto char_out_u = static_cast<unsigned char>(seq.back());
     const auto char_in_u = static_cast<unsigned char>(char_in);
     const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, rev_in_mask);
-    const auto out_mask = kmer::blind_rev_out_mask(char_out_u, k, fwd_out_mask);
+    const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, rev_in_mask);
 
     fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
     rev_hash = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
@@ -587,7 +586,7 @@ public:
     const auto char_out_u = static_cast<unsigned char>(seq.back());
     const auto char_in_u = static_cast<unsigned char>(char_in);
     const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, rev_in_mask);
-    const auto out_mask = kmer::blind_rev_out_mask(char_out_u, k, fwd_out_mask);
+    const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, rev_in_mask);
 
     const auto fwd = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
     const auto rev = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
