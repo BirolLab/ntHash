@@ -3,7 +3,6 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 #include "tables.hpp"
 
@@ -31,20 +30,20 @@ constexpr unsigned int MULTISHIFT = 27;
 // seed for generating multiple hash values
 constexpr HASH_TYPE MULTISEED = 0x90b45d39fb6da1fa;
 
-inline HASH_TYPE
-canonical(const HASH_TYPE fwd, const HASH_TYPE rev)
+[[nodiscard]] inline HASH_TYPE
+canonical(const HASH_TYPE fwd, const HASH_TYPE rev) noexcept
 {
   return fwd + rev;
 }
 
-inline HASH_TYPE
-rotl(HASH_TYPE x, unsigned int r)
+[[nodiscard]] inline HASH_TYPE
+rotl(HASH_TYPE x, unsigned int r) noexcept
 {
   return (x << (r & (HASH_BITS - 1))) | (x >> ((-r) & (HASH_BITS - 1)));
 }
 
-inline HASH_TYPE
-rotr(HASH_TYPE x, unsigned int r)
+[[nodiscard]] inline HASH_TYPE
+rotr(HASH_TYPE x, unsigned int r) noexcept
 {
   return (x >> (r & (HASH_BITS - 1))) | (x << ((-r) & (HASH_BITS - 1)));
 }
@@ -52,16 +51,14 @@ rotr(HASH_TYPE x, unsigned int r)
 /**
  * Steps the hash forward (to the right) by d positions.
  */
-inline HASH_TYPE
-roll_next(HASH_TYPE hash_value)
+[[nodiscard]] inline HASH_TYPE
+roll_next(HASH_TYPE hash_value) noexcept
 {
-  hash_value = rotl(hash_value, ROT_R);
-  hash_value ^= (hash_value << SHIFT_C);
-  return hash_value;
+  return rotl(hash_value, ROT_R) ^ (hash_value << SHIFT_C);
 }
 
-inline HASH_TYPE
-roll_next(HASH_TYPE hash_value, unsigned d)
+[[nodiscard]] inline HASH_TYPE
+roll_next(HASH_TYPE hash_value, unsigned d) noexcept
 {
   for (unsigned i = 0; i < d; i++) {
     hash_value = roll_next(hash_value);
@@ -72,8 +69,8 @@ roll_next(HASH_TYPE hash_value, unsigned d)
 /**
  * Steps the hash backward (to the left) by d positions.
  */
-inline HASH_TYPE
-roll_back(HASH_TYPE hash_value)
+[[nodiscard]] inline HASH_TYPE
+roll_back(HASH_TYPE hash_value) noexcept
 {
   HASH_TYPE y = hash_value;
   for (unsigned s = SHIFT_C; s < HASH_BITS; s *= 2) {
@@ -82,10 +79,10 @@ roll_back(HASH_TYPE hash_value)
   return rotr(y, ROT_R);
 }
 
-inline HASH_TYPE
-roll_back(HASH_TYPE hash_value, unsigned d)
+[[nodiscard]] inline HASH_TYPE
+roll_back(HASH_TYPE hash_value, unsigned d) noexcept
 {
-  for (unsigned i = 0; i < d; ++i) {
+  for (unsigned i = 0; i < d; i++) {
     hash_value = roll_back(hash_value);
   }
   return hash_value;
@@ -123,7 +120,7 @@ extend_hashes(HASH_TYPE fwd_hash,
  * @return `true` if any of the first k characters is not an ACGTU, `false`
  * otherwise
  */
-inline bool
+[[nodiscard]] inline bool
 is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
 {
   for (size_t i = k; i-- > 0;) {
@@ -135,4 +132,4 @@ is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
   return false;
 }
 
-} // namespace nthash
+} // namespace nthash::utils
