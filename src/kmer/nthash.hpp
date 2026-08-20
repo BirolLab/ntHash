@@ -36,6 +36,7 @@ public:
     , initialized(false)
     , masks(k)
     , hash_arr(num_hashes)
+    , k_mult(static_cast<HASH_TYPE>(k) * internal::MULTISEED)
   {
     if (k == 0) {
       throw std::invalid_argument("NtHash: k must be greater than 0");
@@ -96,7 +97,7 @@ public:
     fwd_hash = kmer::next_forward_hash(fwd_hash, mask_out, char_in);
     const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in]];
     rev_hash = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
     ++pos;
     return true;
   }
@@ -255,6 +256,7 @@ private:
   HASH_TYPE rev_hash = 0;
   kmer::StrandMasks masks;
   std::vector<HASH_TYPE> hash_arr;
+  const HASH_TYPE k_mult;
 
   /**
    * Initialize the internal state of the iterator
@@ -274,7 +276,7 @@ private:
       if (valid) {
         fwd_hash = kmer::base_forward_hash(seq.data() + pos, k);
         rev_hash = kmer::base_reverse_hash(seq.data() + pos, k);
-        internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+        internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
         initialized = true;
         return true;
       }

@@ -87,6 +87,21 @@ roll_back(HASH_TYPE hash_value, unsigned d) noexcept
   return hash_value;
 }
 
+inline void
+extend_hashes(HASH_TYPE fwd_hash,
+              HASH_TYPE rev_hash,
+              HASH_TYPE k_mult,
+              std::vector<HASH_TYPE>& hash_array) noexcept
+{
+  HASH_TYPE t_val;
+  hash_array[0] = canonical(fwd_hash, rev_hash);
+  for (unsigned i = 1; i < hash_array.size(); i++) {
+    t_val = hash_array[0] * (i ^ k_mult);
+    t_val ^= t_val >> MULTISHIFT;
+    hash_array[i] = t_val;
+  }
+}
+
 /**
  * Extend hash array using a base hash value.
  * @param fwd_hash Forward hash value
@@ -102,25 +117,7 @@ extend_hashes(HASH_TYPE fwd_hash,
               std::vector<HASH_TYPE>& hash_array) noexcept
 {
   const auto k_mult = static_cast<HASH_TYPE>(k) * MULTISEED;
-  return extend_hashes(
-    fwd_hash, rev_hash, k, k_mult, hash_array.data());
-}
-
-inline void
-extend_hashes(HASH_TYPE fwd_hash,
-              HASH_TYPE rev_hash,
-              K_TYPE k,
-              HASH_TYPE k_mult,
-              unsigned num_hashes,
-              HASH_TYPE* hash_array) noexcept
-{
-  HASH_TYPE t_val;
-  hash_array[0] = canonical(fwd_hash, rev_hash);
-  for (unsigned i = 1; i < num_hashes; i++) {
-    t_val = hash_array[0] * (i ^ k_mult);
-    t_val ^= t_val >> MULTISHIFT;
-    hash_array[i] = t_val;
-  }
+  return extend_hashes(fwd_hash, rev_hash, k_mult, hash_array);
 }
 
 } // namespace nthash::internal

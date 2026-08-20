@@ -15,6 +15,7 @@ using internal::K_TYPE;
  * Container for the two strand-specific forward-out and reverse-in masks.
  * Forward-out mask: k-th rotation of each base's seed.
  * Reverse-in mask: (k-1)-th rotation of each base's complement's seed.
+ * Masks are cached for k, since k doesn't normally change in a single run.
  */
 struct StrandMasks
 {
@@ -23,14 +24,25 @@ struct StrandMasks
 
   constexpr StrandMasks() noexcept = default;
 
-  constexpr explicit StrandMasks(K_TYPE k) noexcept
+  StrandMasks(K_TYPE k)
   {
-    constexpr std::array<HASH_TYPE, 4> seeds{
-      internal::SEED_A, internal::SEED_C, internal::SEED_G, internal::SEED_T
-    };
-    for (size_t i = 0; i < seeds.size(); i++) {
-      fwd_out[i] = internal::roll_next(seeds[i], k);
-      rev_in[i] = internal::roll_next(seeds[seeds.size() - 1 - i], k - 1);
+    static K_TYPE cached_k = 0;
+    static std::array<HASH_TYPE, 4> cached_fwd;
+    static std::array<HASH_TYPE, 4> cached_rev;
+    if (k != cached_k) {
+      constexpr std::array<HASH_TYPE, 4> seeds{
+        internal::SEED_A, internal::SEED_C, internal::SEED_G, internal::SEED_T
+      };
+      for (size_t i = 0; i < seeds.size(); i++) {
+        fwd_out[i] = internal::roll_next(seeds[i], k);
+        rev_in[i] = internal::roll_next(seeds[seeds.size() - 1 - i], k - 1);
+      }
+      cached_fwd = fwd_out;
+      cached_rev = rev_in;
+      cached_k = k;
+    } else {
+      fwd_out = cached_fwd;
+      rev_in = cached_rev;
     }
   }
 };
