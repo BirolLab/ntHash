@@ -2,15 +2,16 @@
 
 #include "utils.hpp"
 
-#include <cstring>
-#include <memory>
+#include <sstream>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace nthash::kmer {
 
 using internal::HASH_TYPE;
 using internal::K_TYPE;
-using internal::NUM_HASHES_TYPE;
 
 class NtHash
 {
@@ -26,30 +27,30 @@ public:
    */
   NtHash(const char* seq,
          size_t seq_len,
-         NUM_HASHES_TYPE num_hashes,
+         unsigned num_hashes,
          K_TYPE k,
          size_t pos = 0)
     : seq(seq, seq_len)
-    , num_hashes(num_hashes)
     , k(k)
     , pos(pos)
     , initialized(false)
     , masks(k)
-    , hash_arr(new HASH_TYPE[num_hashes])
+    , hash_arr(num_hashes)
   {
     if (k == 0) {
       throw std::invalid_argument("NtHash: k must be greater than 0");
     }
     if (this->seq.size() < k) {
-      throw std::invalid_argument(
-        "NtHash: sequence length (" + std::to_string(this->seq.size()) +
-        ") is smaller than k (" + std::to_string(k) + ")");
+      std::ostringstream err;
+      err << "NtHash: sequence length (" << this->seq.size() << ") ";
+      err << "is smaller than k (" << k << ")";
+      throw std::invalid_argument(err.str());
     }
     if (pos > this->seq.size() - k) {
-      throw std::invalid_argument("NtHash: passed position (" +
-                                  std::to_string(pos) +
-                                  ") is larger than sequence length (" +
-                                  std::to_string(this->seq.size()) + ")");
+      std::ostringstream err;
+      err << "NtHash: passed position (" << pos << ") ";
+      err << "is larger than sequence length (" << this->seq.size() << ")";
+      throw std::invalid_argument(err.str());
     }
   }
 
@@ -60,30 +61,10 @@ public:
    * @param k K-mer size
    * @param pos Position in sequence to start hashing from
    */
-  NtHash(std::string_view seq,
-         NUM_HASHES_TYPE num_hashes,
-         K_TYPE k,
-         size_t pos = 0)
+  NtHash(std::string_view seq, unsigned num_hashes, K_TYPE k, size_t pos = 0)
     : NtHash(seq.data(), seq.size(), num_hashes, k, pos)
   {
   }
-
-  NtHash(const NtHash& obj)
-    : seq(obj.seq)
-    , num_hashes(obj.num_hashes)
-    , k(obj.k)
-    , pos(obj.pos)
-    , initialized(obj.initialized)
-    , fwd_hash(obj.fwd_hash)
-    , rev_hash(obj.rev_hash)
-    , masks(obj.masks)
-  {
-    hash_arr = std::make_unique<HASH_TYPE[]>(num_hashes);
-    const auto copy_size = num_hashes * sizeof(HASH_TYPE);
-    std::memcpy(hash_arr.get(), obj.hash_arr.get(), copy_size);
-  }
-
-  NtHash(NtHash&&) = default;
 
   /**
    * Calculate the hash values of current k-mer and advance to the next k-mer.
@@ -105,21 +86,17 @@ public:
     if (pos >= seq.size() - k) {
       return false;
     }
-    if (internal::SEED_TAB[(unsigned char)seq[pos + k]] == internal::SEED_N) {
+    const auto char_in = static_cast<unsigned char>(seq[pos + k]);
+    if (internal::SEED_TAB[char_in] == internal::SEED_N) {
       pos += k;
       return init();
     }
-    const auto out_loc =
-      internal::CONVERT_TAB[static_cast<unsigned char>(seq[pos])];
-    fwd_hash =
-      kmer::next_forward_hash(fwd_hash,
-                              masks.fwd_out[out_loc],
-                              static_cast<unsigned char>(seq[pos + k]));
-    const auto in_loc =
-      internal::CONVERT_TAB[static_cast<unsigned char>(seq[pos + k])];
-    rev_hash = kmer::next_reverse_hash(
-      rev_hash, static_cast<unsigned char>(seq[pos]), masks.rev_in[in_loc]);
-    internal::extend_hashes(fwd_hash, rev_hash, k, num_hashes, hash_arr.get());
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
+    const auto mask_out = masks.fwd_out[internal::CONVERT_TAB[char_out]];
+    fwd_hash = kmer::next_forward_hash(fwd_hash, mask_out, char_in);
+    const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in]];
+    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
+    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
     ++pos;
     return true;
   }
@@ -136,7 +113,6 @@ public:
     if (pos == 0) {
       return false;
     }
-
     const auto char_in = static_cast<unsigned char>(seq[pos - 1]);
     if (internal::SEED_TAB[char_in] == internal::SEED_N) {
       if (pos >= k) {
@@ -145,16 +121,12 @@ public:
       }
       return false;
     }
-
     const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
-    const auto in_loc = internal::CONVERT_TAB[char_in];
-    const auto out_loc = internal::CONVERT_TAB[char_out];
-
-    fwd_hash =
-      kmer::prev_forward_hash(fwd_hash, char_out, masks.rev_in[3 - in_loc]);
-    rev_hash =
-      kmer::prev_reverse_hash(rev_hash, masks.rev_in[out_loc], char_in);
-    internal::extend_hashes(fwd_hash, rev_hash, k, num_hashes, hash_arr.get());
+    const auto mask_in = masks.rev_in[3 - internal::CONVERT_TAB[char_in]];
+    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, mask_in);
+    const auto mask_out = masks.rev_in[internal::CONVERT_TAB[char_out]];
+    rev_hash = kmer::prev_reverse_hash(rev_hash, mask_out, char_in);
+    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
     --pos;
     return true;
   }
@@ -194,22 +166,18 @@ public:
   bool peek(char char_in)
   {
     if (!initialized && !init()) {
-      return init();
+      return false;
     }
     const auto char_in_u = static_cast<unsigned char>(char_in);
     if (internal::SEED_TAB[char_in_u] == internal::SEED_N) {
       return false;
     }
-
     const auto char_out = static_cast<unsigned char>(seq[pos]);
-    const auto out_loc = internal::CONVERT_TAB[char_out];
-    const auto in_loc = internal::CONVERT_TAB[char_in_u];
-
-    const auto fwd =
-      kmer::next_forward_hash(fwd_hash, masks.fwd_out[out_loc], char_in_u);
-    const auto rev =
-      kmer::next_reverse_hash(rev_hash, char_out, masks.rev_in[in_loc]);
-    internal::extend_hashes(fwd, rev, k, num_hashes, hash_arr.get());
+    const auto mask_out = masks.fwd_out[internal::CONVERT_TAB[char_out]];
+    const auto fwd = kmer::next_forward_hash(fwd_hash, mask_out, char_in_u);
+    const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in_u]];
+    const auto rev = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
+    internal::extend_hashes(fwd, rev, k, hash_arr);
     return true;
   }
 
@@ -220,22 +188,18 @@ public:
   bool peek_back(char char_in)
   {
     if (!initialized && !init()) {
-      return init();
+      return false;
     }
     const auto char_in_u = static_cast<unsigned char>(char_in);
     if (internal::SEED_TAB[char_in_u] == internal::SEED_N) {
       return false;
     }
-
     const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
-    const auto in_loc = internal::CONVERT_TAB[char_in_u];
-    const auto out_loc = internal::CONVERT_TAB[char_out];
-
-    const auto fwd =
-      kmer::prev_forward_hash(fwd_hash, char_out, masks.rev_in[3 - in_loc]);
-    const auto rev =
-      kmer::prev_reverse_hash(rev_hash, masks.rev_in[out_loc], char_in_u);
-    internal::extend_hashes(fwd, rev, k, num_hashes, hash_arr.get());
+    const auto mask_in = masks.rev_in[3 - internal::CONVERT_TAB[char_in_u]];
+    const auto fwd = kmer::prev_forward_hash(fwd_hash, char_out, mask_in);
+    const auto mask_out = masks.rev_in[internal::CONVERT_TAB[char_out]];
+    const auto rev = kmer::prev_reverse_hash(rev_hash, mask_out, char_in_u);
+    internal::extend_hashes(fwd, rev, k, hash_arr);
     return true;
   }
 
@@ -243,49 +207,54 @@ public:
    * Get the array of current canonical hash values (length = \p get_hash_num())
    * @return Pointer to the hash array
    */
-  const HASH_TYPE* hashes() const { return hash_arr.get(); }
+  [[nodiscard]] const HASH_TYPE* hashes() const noexcept
+  {
+    return hash_arr.data();
+  }
 
   /**
    * Get the position of last hashed k-mer or the k-mer to be hashed if roll()
    * has never been called on this NtHash object.
    * @return Position of the most recently hashed k-mer's first base-pair
    */
-  size_t get_pos() const { return pos; }
+  [[nodiscard]] size_t get_pos() const noexcept { return pos; }
 
   /**
    * Get the number of hashes generated per k-mer.
    * @return Number of hashes per k-mer
    */
-  NUM_HASHES_TYPE get_hash_num() const { return num_hashes; }
+  [[nodiscard]] unsigned get_hash_num() const noexcept
+  {
+    return hash_arr.size();
+  }
 
   /**
    * Get the length of the k-mers.
    * @return \p k
    */
-  K_TYPE get_k() const { return k; }
+  [[nodiscard]] K_TYPE get_k() const noexcept { return k; }
 
   /**
    * Get the hash value of the forward strand.
    * @return Forward hash value
    */
-  HASH_TYPE get_forward_hash() const { return fwd_hash; }
+  [[nodiscard]] HASH_TYPE get_forward_hash() const noexcept { return fwd_hash; }
 
   /**
    * Get the hash value of the reverse strand.
    * @return Reverse-complement hash value
    */
-  HASH_TYPE get_reverse_hash() const { return rev_hash; }
+  [[nodiscard]] HASH_TYPE get_reverse_hash() const noexcept { return rev_hash; }
 
 private:
   std::string_view seq;
-  NUM_HASHES_TYPE num_hashes;
   K_TYPE k;
   size_t pos;
   bool initialized;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
   kmer::StrandMasks masks;
-  std::unique_ptr<HASH_TYPE[]> hash_arr;
+  std::vector<HASH_TYPE> hash_arr;
 
   /**
    * Initialize the internal state of the iterator
@@ -293,19 +262,24 @@ private:
    */
   bool init()
   {
-    size_t pos_n = 0;
-    while (pos <= seq.size() - k &&
-           internal::is_invalid_kmer(seq.data() + pos, k, pos_n)) {
-      pos += pos_n + 1;
+    while (pos <= seq.size() - k) {
+      bool valid = true;
+      for (size_t i = k; i > 0 && valid; --i) {
+        const auto c = static_cast<unsigned char>(seq[pos + i - 1]);
+        if (internal::SEED_TAB[c] == internal::SEED_N) {
+          pos += i;
+          valid = false;
+        }
+      }
+      if (valid) {
+        fwd_hash = kmer::base_forward_hash(seq.data() + pos, k);
+        rev_hash = kmer::base_reverse_hash(seq.data() + pos, k);
+        internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+        initialized = true;
+        return true;
+      }
     }
-    if (pos > seq.size() - k) {
-      return false;
-    }
-    fwd_hash = kmer::base_forward_hash(seq.data() + pos, k);
-    rev_hash = kmer::base_reverse_hash(seq.data() + pos, k);
-    internal::extend_hashes(fwd_hash, rev_hash, k, num_hashes, hash_arr.get());
-    initialized = true;
-    return true;
+    return false;
   }
 };
 

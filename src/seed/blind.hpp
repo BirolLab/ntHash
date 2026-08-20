@@ -23,7 +23,7 @@ public:
    */
   BlindSeedNtHash(const char* seq_ptr,
                   const std::vector<std::string>& seeds,
-                  NUM_HASHES_TYPE num_hashes_per_seed,
+                  unsigned num_hashes_per_seed,
                   K_TYPE k,
                   ssize_t pos = 0)
     : seq(seq_ptr + pos, seq_ptr + pos + k)
@@ -42,7 +42,7 @@ public:
       throw std::invalid_argument("BlindSeedNtHash: empty seeds");
 
     size_t pos_n = 0;
-    if (internal::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
+    if (seed::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
       throw std::invalid_argument(
         "BlindSeedNtHash: initial k-mer contains invalid characters");
     }
@@ -68,7 +68,7 @@ public:
 
   BlindSeedNtHash(const char* seq_ptr,
                   const std::vector<std::vector<unsigned>>& seeds,
-                  NUM_HASHES_TYPE num_hashes_per_seed,
+                  unsigned num_hashes_per_seed,
                   K_TYPE k,
                   ssize_t pos = 0)
     : seq(seq_ptr + pos, seq_ptr + pos + k)
@@ -87,7 +87,7 @@ public:
       throw std::invalid_argument("BlindSeedNtHash: empty seeds");
 
     size_t pos_n = 0;
-    if (internal::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
+    if (seed::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
       throw std::invalid_argument(
         "BlindSeedNtHash: initial k-mer contains invalid characters");
     }
@@ -270,14 +270,14 @@ public:
   const HASH_TYPE* hashes() const { return hash_arr.get(); }
   ssize_t get_pos() const { return pos; }
   unsigned get_hash_num() const { return num_hashes_per_seed * blocks.size(); }
-  NUM_HASHES_TYPE get_hash_num_per_seed() const { return num_hashes_per_seed; }
+  unsigned get_hash_num_per_seed() const { return num_hashes_per_seed; }
   K_TYPE get_k() const { return static_cast<K_TYPE>(seq.size()); }
   const HASH_TYPE* get_forward_hash() const { return fwd_hash.get(); }
   const HASH_TYPE* get_reverse_hash() const { return rev_hash.get(); }
 
 private:
   std::deque<char> seq;
-  NUM_HASHES_TYPE num_hashes_per_seed;
+  unsigned num_hashes_per_seed;
   K_TYPE k;
   ssize_t pos;
   std::vector<SpacedSeedBlocks> blocks;

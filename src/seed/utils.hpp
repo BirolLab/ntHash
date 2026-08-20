@@ -17,7 +17,7 @@ namespace nthash::seed {
 
 using internal::HASH_TYPE;
 using internal::K_TYPE;
-using internal::NUM_HASHES_TYPE;
+
 using SpacedSeedBlocks = std::vector<std::array<unsigned, 2>>;
 using SpacedSeedMonomers = std::vector<unsigned>;
 
@@ -125,7 +125,7 @@ ntmsm64_init(const char* kmer_seq,
              const std::vector<SpacedSeedMonomers>& seeds_monomers,
              K_TYPE k,
              unsigned m,
-             NUM_HASHES_TYPE m2,
+             unsigned m2,
              const std::vector<std::array<HASH_TYPE, 4>>& fwd_shift_table,
              const std::vector<std::array<HASH_TYPE, 4>>& rev_shift_table,
              HASH_TYPE* fh_nomonos,
@@ -181,7 +181,7 @@ ntmsm64_forward_core(
   const std::vector<SpacedSeedMonomers>& seeds_monomers,
   K_TYPE k,
   unsigned m,
-  NUM_HASHES_TYPE m2,
+  unsigned m2,
   const std::vector<std::array<HASH_TYPE, 4>>& fwd_shift_table,
   const std::vector<std::array<HASH_TYPE, 4>>& rev_shift_table,
   HASH_TYPE* fh_nomonos,
@@ -242,7 +242,7 @@ ntmsm64_backward_core(
   const std::vector<SpacedSeedMonomers>& seeds_monomers,
   K_TYPE k,
   unsigned m,
-  NUM_HASHES_TYPE m2,
+  unsigned m2,
   const std::vector<std::array<HASH_TYPE, 4>>& fwd_shift_table,
   const std::vector<std::array<HASH_TYPE, 4>>& rev_shift_table,
   HASH_TYPE* fh_nomonos,
@@ -312,6 +312,25 @@ parse_seeds(const std::vector<std::string>& seed_strings)
   }
 
   return seed_set;
+}
+
+/**
+ * Check the current k-mer for non ACGTU's
+ * @param seq C array containing the sequence's characters
+ * @param k k-mer size
+ * @return `true` if any of the first k characters is not an ACGTU, `false`
+ * otherwise
+ */
+[[nodiscard]] inline bool
+is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
+{
+  for (size_t i = k; i-- > 0;) {
+    if (internal::SEED_TAB[(unsigned char)seq[i]] == internal::SEED_N) {
+      pos_n = i;
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace nthash::seed

@@ -21,7 +21,7 @@ public:
   SeedNtHash(const char* seq,
              size_t seq_len,
              const std::vector<std::string>& seeds,
-             NUM_HASHES_TYPE num_hashes_per_seed,
+             unsigned num_hashes_per_seed,
              K_TYPE k,
              size_t pos = 0)
     : seq(seq, seq_len)
@@ -51,7 +51,7 @@ public:
 
   SeedNtHash(std::string_view seq,
              const std::vector<std::string>& seeds,
-             NUM_HASHES_TYPE num_hashes_per_seed,
+             unsigned num_hashes_per_seed,
              K_TYPE k,
              size_t pos = 0)
     : SeedNtHash(seq.data(), seq.size(), seeds, num_hashes_per_seed, k, pos)
@@ -61,7 +61,7 @@ public:
   SeedNtHash(const char* seq,
              size_t seq_len,
              const std::vector<std::vector<unsigned>>& seeds,
-             NUM_HASHES_TYPE num_hashes_per_seed,
+             unsigned num_hashes_per_seed,
              K_TYPE k,
              size_t pos = 0)
     : seq(seq, seq_len)
@@ -90,7 +90,7 @@ public:
 
   SeedNtHash(std::string_view seq,
              const std::vector<std::vector<unsigned>>& seeds,
-             NUM_HASHES_TYPE num_hashes_per_seed,
+             unsigned num_hashes_per_seed,
              K_TYPE k,
              size_t pos = 0)
     : SeedNtHash(seq.data(), seq.size(), seeds, num_hashes_per_seed, k, pos)
@@ -141,7 +141,7 @@ public:
       return false;
 
     size_t pos_n = 0;
-    if (internal::is_invalid_kmer(seq.data() + pos + 1, k, pos_n)) {
+    if (seed::is_invalid_kmer(seq.data() + pos + 1, k, pos_n)) {
       pos += pos_n + 1;
       return init();
     }
@@ -174,7 +174,7 @@ public:
       return false;
 
     size_t pos_n = 0;
-    if (internal::is_invalid_kmer(seq.data() + pos - 1, k, pos_n)) {
+    if (seed::is_invalid_kmer(seq.data() + pos - 1, k, pos_n)) {
       return false; // Safe exit instead of infinite loop
     }
 
@@ -293,14 +293,14 @@ public:
   const HASH_TYPE* hashes() const { return hash_arr.get(); }
   size_t get_pos() const { return pos; }
   unsigned get_hash_num() const { return num_hashes_per_seed * blocks.size(); }
-  NUM_HASHES_TYPE get_hash_num_per_seed() const { return num_hashes_per_seed; }
+  unsigned get_hash_num_per_seed() const { return num_hashes_per_seed; }
   K_TYPE get_k() const { return k; }
   const HASH_TYPE* get_forward_hash() const { return fwd_hash.get(); }
   const HASH_TYPE* get_reverse_hash() const { return rev_hash.get(); }
 
 private:
   std::string_view seq;
-  NUM_HASHES_TYPE num_hashes_per_seed;
+  unsigned num_hashes_per_seed;
   K_TYPE k;
   size_t pos;
   bool initialized;
@@ -335,7 +335,7 @@ private:
   {
     size_t pos_n = 0;
     while (pos <= seq.size() - k) {
-      if (internal::is_invalid_kmer(seq.data() + pos, k, pos_n)) {
+      if (seed::is_invalid_kmer(seq.data() + pos, k, pos_n)) {
         pos += pos_n + 1;
         continue;
       }

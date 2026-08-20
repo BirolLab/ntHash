@@ -10,7 +10,6 @@ namespace nthash::kmer {
 
 using internal::HASH_TYPE;
 using internal::K_TYPE;
-using internal::NUM_HASHES_TYPE;
 
 /**
  * Container for the two strand-specific forward-out and reverse-in masks.
@@ -140,7 +139,7 @@ prev_reverse_hash(HASH_TYPE rh_val,
 inline HASH_TYPE
 blind_fwd_out_mask(unsigned char c,
                    K_TYPE k,
-                   const HASH_TYPE (&fwd_out_mask)[4])
+                   const std::array<HASH_TYPE, 4>& fwd_out_mask)
 {
   const auto loc = internal::CONVERT_TAB[c];
   return loc < 4 ? fwd_out_mask[loc]
@@ -149,7 +148,9 @@ blind_fwd_out_mask(unsigned char c,
 }
 
 inline HASH_TYPE
-blind_rev_in_mask(unsigned char c, K_TYPE k, const HASH_TYPE (&rev_in_mask)[4])
+blind_rev_in_mask(unsigned char c,
+                  K_TYPE k,
+                  const std::array<HASH_TYPE, 4>& rev_in_mask)
 {
   const auto loc = internal::CONVERT_TAB[c];
   return loc < 4 ? rev_in_mask[loc]
@@ -158,7 +159,9 @@ blind_rev_in_mask(unsigned char c, K_TYPE k, const HASH_TYPE (&rev_in_mask)[4])
 }
 
 inline HASH_TYPE
-blind_fwd_in_mask(unsigned char c, K_TYPE k, const HASH_TYPE (&rev_in_mask)[4])
+blind_fwd_in_mask(unsigned char c,
+                  K_TYPE k,
+                  const std::array<HASH_TYPE, 4>& rev_in_mask)
 {
   const auto loc = internal::CONVERT_TAB[c];
   return loc < 4 ? rev_in_mask[3 - loc]
@@ -169,7 +172,7 @@ blind_fwd_in_mask(unsigned char c, K_TYPE k, const HASH_TYPE (&rev_in_mask)[4])
 inline HASH_TYPE
 blind_rev_out_mask(unsigned char c,
                    K_TYPE k,
-                   const HASH_TYPE (&fwd_out_mask)[4])
+                   const std::array<HASH_TYPE, 4>& fwd_out_mask)
 {
   const auto loc = internal::CONVERT_TAB[c];
   return loc < 4 ? fwd_out_mask[3 - loc]

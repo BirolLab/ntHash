@@ -12,7 +12,7 @@ import typing
 def get_input_files(paths: typing.Sequence[str]) -> list[pathlib.Path]:
     globs = itertools.chain.from_iterable(glob.glob(p, recursive=True) for p in paths)
     globs = filter(lambda p: p.endswith(".hpp"), globs)
-    return sorted([pathlib.Path(p) for p in globs], key=lambda p: p.name)
+    return sorted({pathlib.Path(p).resolve() for p in set(globs)})
 
 
 def sort_dependencies(paths: typing.Sequence[pathlib.Path]) -> list[str]:
@@ -22,13 +22,19 @@ def sort_dependencies(paths: typing.Sequence[pathlib.Path]) -> list[str]:
     in_degree = {f: 0 for f in paths}
     external_includes = set()
     file_contents = {}
-    path_map = {p.name: p for p in paths}
+    paths_set = set(paths)
     for path in sorted(paths):
         contents = path.read_text(encoding="utf-8")
         includes = inc_re.findall(contents)
-        includes = [(line.strip(), inc.split("/")[-1]) for line, inc in includes]
-        local_deps = {path_map[f] for _, f in includes if f in path_map} - {path}
-        external_includes.update(line for line, f in includes if f not in path_map)
+        local_deps = set()
+        for line, inc in includes:
+            line = line.strip()
+            resolved_inc = (path.parent / inc).resolve()
+            if resolved_inc in paths_set:
+                local_deps.add(resolved_inc)
+            else:
+                external_includes.add(line)
+        local_deps -= {path}
         in_degree[path] = len(local_deps)
         for dep in local_deps:
             graph[dep].add(path)
@@ -43,7 +49,7 @@ def sort_dependencies(paths: typing.Sequence[pathlib.Path]) -> list[str]:
             in_degree[neighbor] -= 1
             if in_degree[neighbor] == 0:
                 queue.append(neighbor)
-        queue.sort(key=lambda p: p.name)
+        queue.sort()
     if len(ordered_files) != len(paths):
         raise RuntimeError("Cyclic dependency detected among the headers!")
     result = [
@@ -56,11 +62,15 @@ def sort_dependencies(paths: typing.Sequence[pathlib.Path]) -> list[str]:
     result.extend(sorted(external_includes))
     result.append(os.linesep)
     for f in ordered_files:
-        result.append(f"// --- BEGIN FILE: {f.name} ---")
+        try:
+            rel_name = f.relative_to(pathlib.Path.cwd()).as_posix()
+        except ValueError:
+            rel_name = f.name
+        result.append(f"// --- BEGIN FILE: {rel_name} ---")
         result.append(os.linesep)
         result.append(file_contents[f])
         result.append(os.linesep)
-        result.append(f"// --- END FILE: {f.name} ---")
+        result.append(f"// --- END FILE: {rel_name} ---")
     return result
 
 

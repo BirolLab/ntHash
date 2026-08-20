@@ -2,8 +2,8 @@
 
 #include <climits>
 #include <cstddef>
-
-#include "tables.hpp"
+#include <cstdint>
+#include <vector>
 
 namespace nthash::internal {
 
@@ -15,7 +15,6 @@ constexpr unsigned int HASH_BITS = sizeof(HASH_TYPE) * CHAR_BIT;
  * copied in, e.g., DBG traversal.
  */
 using K_TYPE = uint16_t;
-using NUM_HASHES_TYPE = uint8_t;
 
 // number of rotations per roll
 constexpr unsigned int ROT_R = 7;
@@ -29,19 +28,19 @@ constexpr unsigned int MULTISHIFT = 27;
 // seed for generating multiple hash values
 constexpr HASH_TYPE MULTISEED = 0x90b45d39fb6da1fa;
 
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 canonical(const HASH_TYPE fwd, const HASH_TYPE rev) noexcept
 {
   return fwd + rev;
 }
 
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 rotl(HASH_TYPE x, unsigned int r) noexcept
 {
   return (x << (r & (HASH_BITS - 1))) | (x >> ((-r) & (HASH_BITS - 1)));
 }
 
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 rotr(HASH_TYPE x, unsigned int r) noexcept
 {
   return (x >> (r & (HASH_BITS - 1))) | (x << ((-r) & (HASH_BITS - 1)));
@@ -50,14 +49,14 @@ rotr(HASH_TYPE x, unsigned int r) noexcept
 /**
  * Steps the hash forward (to the right) by d positions.
  */
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 roll_next(HASH_TYPE hash_value) noexcept
 {
   hash_value = rotl(hash_value, ROT_R);
   return hash_value ^ (hash_value << SHIFT_C);
 }
 
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 roll_next(HASH_TYPE hash_value, unsigned d) noexcept
 {
   for (unsigned i = 0; i < d; i++) {
@@ -69,7 +68,7 @@ roll_next(HASH_TYPE hash_value, unsigned d) noexcept
 /**
  * Steps the hash backward (to the left) by d positions.
  */
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 roll_back(HASH_TYPE hash_value) noexcept
 {
   HASH_TYPE y = hash_value;
@@ -79,7 +78,7 @@ roll_back(HASH_TYPE hash_value) noexcept
   return rotr(y, ROT_R);
 }
 
-[[nodiscard]] inline HASH_TYPE
+[[nodiscard]] inline constexpr HASH_TYPE
 roll_back(HASH_TYPE hash_value, unsigned d) noexcept
 {
   for (unsigned i = 0; i < d; i++) {
@@ -100,36 +99,28 @@ inline void
 extend_hashes(HASH_TYPE fwd_hash,
               HASH_TYPE rev_hash,
               K_TYPE k,
-              NUM_HASHES_TYPE h,
-              HASH_TYPE* hash_array)
+              std::vector<HASH_TYPE>& hash_array) noexcept
+{
+  const auto k_mult = static_cast<HASH_TYPE>(k) * MULTISEED;
+  return extend_hashes(
+    fwd_hash, rev_hash, k, k_mult, hash_array.data());
+}
+
+inline void
+extend_hashes(HASH_TYPE fwd_hash,
+              HASH_TYPE rev_hash,
+              K_TYPE k,
+              HASH_TYPE k_mult,
+              unsigned num_hashes,
+              HASH_TYPE* hash_array) noexcept
 {
   HASH_TYPE t_val;
   hash_array[0] = canonical(fwd_hash, rev_hash);
-  const auto k_mult = static_cast<HASH_TYPE>(k) * MULTISEED;
-  for (unsigned i = 1; i < h; i++) {
+  for (unsigned i = 1; i < num_hashes; i++) {
     t_val = hash_array[0] * (i ^ k_mult);
     t_val ^= t_val >> MULTISHIFT;
     hash_array[i] = t_val;
   }
-}
-
-/**
- * Check the current k-mer for non ACGTU's
- * @param seq C array containing the sequence's characters
- * @param k k-mer size
- * @return `true` if any of the first k characters is not an ACGTU, `false`
- * otherwise
- */
-[[nodiscard]] inline bool
-is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
-{
-  for (size_t i = k; i-- > 0;) {
-    if (internal::SEED_TAB[(unsigned char)seq[i]] == internal::SEED_N) {
-      pos_n = i;
-      return true;
-    }
-  }
-  return false;
 }
 
 } // namespace nthash::internal
