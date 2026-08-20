@@ -94,9 +94,10 @@ extend_hashes(HASH_TYPE fwd_hash,
               std::vector<HASH_TYPE>& hash_array) noexcept
 {
   HASH_TYPE t_val;
-  hash_array[0] = canonical(fwd_hash, rev_hash);
+  const auto base_hash = canonical(fwd_hash, rev_hash);
+  hash_array[0] = base_hash;
   for (unsigned i = 1; i < hash_array.size(); i++) {
-    t_val = hash_array[0] * (i ^ k_mult);
+    t_val = base_hash * (i ^ k_mult);
     t_val ^= t_val >> MULTISHIFT;
     hash_array[i] = t_val;
   }
