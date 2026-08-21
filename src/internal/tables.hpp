@@ -6,10 +6,11 @@
 namespace nthash::internal {
 
 // 64-bit random seeds corresponding to bases and their complements
-constexpr uint64_t SEED_A = 0x3eb13b9046685257;
-constexpr uint64_t SEED_C = 0x22310aefe5d92bca;
-constexpr uint64_t SEED_G = 0x83677b6b400f4886;
-constexpr uint64_t SEED_T = 0x9fe74a14e3be311b;
+// from the generate_seeds script with rng=42
+constexpr uint64_t SEED_A = 0x1c80317fa3b1799d;
+constexpr uint64_t SEED_C = 0xbdd640fb06671ad1;
+constexpr uint64_t SEED_G = 0x3eb13b9046685257;
+constexpr uint64_t SEED_T = 0x23b8c1e9392456de;
 constexpr uint64_t SEED_N = 0x0000000000000000;
 
 // offset for the complement base in the random seeds table
