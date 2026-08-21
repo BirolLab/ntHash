@@ -419,7 +419,7 @@ public:
    * @param pos Position in sequence to start hashing from
    */
   BlindNtHash(const char* seq, unsigned num_hashes, K_TYPE k, ssize_t pos = 0)
-    : kmer(seq + pos, seq + pos + k)
+    : buffer(seq + pos, seq + pos + k)
     , pos(pos)
     , masks(k)
     , hash_arr(num_hashes)
@@ -440,8 +440,8 @@ public:
    */
   void roll(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.front());
+    const auto k = static_cast<K_TYPE>(buffer.size());
+    const auto char_out_u = static_cast<unsigned char>(buffer.front());
     const auto char_in_u = static_cast<unsigned char>(char_in);
     const auto out_mask =
       kmer::blind_fwd_out_mask(char_out_u, k, masks.fwd_out);
@@ -450,8 +450,8 @@ public:
     fwd_hash = kmer::next_forward_hash(fwd_hash, out_mask, char_in_u);
     rev_hash = kmer::next_reverse_hash(rev_hash, char_out_u, in_mask);
     internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
-    kmer.erase(0, 1);
-    kmer.push_back(char_in);
+    buffer.erase(0, 1);
+    buffer.push_back(char_in);
     ++pos;
   }
 
@@ -460,8 +460,8 @@ public:
    */
   void roll_back(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.back());
+    const auto k = static_cast<K_TYPE>(buffer.size());
+    const auto char_out_u = static_cast<unsigned char>(buffer.back());
     const auto char_in_u = static_cast<unsigned char>(char_in);
     const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, masks.rev_in);
     const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, masks.rev_in);
@@ -469,8 +469,8 @@ public:
     fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
     rev_hash = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
     internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
-    kmer.pop_back();
-    kmer.insert(kmer.begin(), char_in);
+    buffer.pop_back();
+    buffer.insert(buffer.begin(), char_in);
     --pos;
   }
 
@@ -479,8 +479,8 @@ public:
    */
   void peek(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.front());
+    const auto k = static_cast<K_TYPE>(buffer.size());
+    const auto char_out_u = static_cast<unsigned char>(buffer.front());
     const auto char_in_u = static_cast<unsigned char>(char_in);
     const auto out_mask =
       kmer::blind_fwd_out_mask(char_out_u, k, masks.fwd_out);
@@ -496,8 +496,8 @@ public:
    */
   void peek_back(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.back());
+    const auto k = static_cast<K_TYPE>(buffer.size());
+    const auto char_out_u = static_cast<unsigned char>(buffer.back());
     const auto char_in_u = static_cast<unsigned char>(char_in);
     const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, masks.rev_in);
     const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, masks.rev_in);
@@ -530,7 +530,7 @@ public:
    * Get the length of the k-mers.
    * @return \p k
    */
-  K_TYPE get_k() const { return static_cast<K_TYPE>(kmer.size()); }
+  K_TYPE get_k() const { return static_cast<K_TYPE>(buffer.size()); }
 
   /**
    * Get the hash value of the forward strand.
@@ -545,7 +545,7 @@ public:
   HASH_TYPE get_reverse_hash() const { return rev_hash; }
 
 private:
-  std::string kmer;
+  std::string buffer;
   ssize_t pos;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;

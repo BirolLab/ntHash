@@ -2,8 +2,6 @@
 
 #include "utils.hpp"
 
-#include <cstring>
-#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -25,17 +23,19 @@ public:
    * @param pos Position in sequence to start hashing from
    */
   BlindNtHash(const char* seq, unsigned num_hashes, K_TYPE k, ssize_t pos = 0)
-    : kmer(seq + pos, seq + pos + k)
+    : buffer(seq + pos, seq + pos + k)
+    , buffer_idx(0)
     , pos(pos)
-    , masks(k)
     , hash_arr(num_hashes)
+    , rollk_tab(generate_rollk_table(k))
+    , k_mult(static_cast<HASH_TYPE>(k) * internal::MULTISEED)
   {
     if (k == 0) {
       throw std::invalid_argument("BlindNtHash: k must be greater than 0");
     }
     fwd_hash = kmer::base_forward_hash(seq + pos, k);
     rev_hash = kmer::base_reverse_hash(seq + pos, k);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
   }
 
   /**
@@ -46,18 +46,15 @@ public:
    */
   void roll(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.front());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto out_mask =
-      kmer::blind_fwd_out_mask(char_out_u, k, masks.fwd_out);
-    const auto in_mask = kmer::blind_rev_in_mask(char_in_u, k, masks.rev_in);
-
-    fwd_hash = kmer::next_forward_hash(fwd_hash, out_mask, char_in_u);
-    rev_hash = kmer::next_reverse_hash(rev_hash, char_out_u, in_mask);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
-    kmer.erase(0, 1);
-    kmer.push_back(char_in);
+    const auto char_out = static_cast<unsigned char>(buffer[buffer_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    fwd_hash = kmer::next_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab);
+    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+    buffer[buffer_idx] = char_in;
+    if (++buffer_idx == get_k()) {
+      buffer_idx = 0;
+    }
     ++pos;
   }
 
@@ -66,17 +63,14 @@ public:
    */
   void roll_back(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.back());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, masks.rev_in);
-    const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, masks.rev_in);
-
-    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
-    rev_hash = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
-    kmer.pop_back();
-    kmer.insert(kmer.begin(), char_in);
+    const auto back_idx = (buffer_idx == 0) ? get_k() - 1 : buffer_idx - 1;
+    const auto char_out = static_cast<unsigned char>(buffer[back_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab);
+    rev_hash = kmer::prev_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+    buffer[back_idx] = char_in;
+    buffer_idx = back_idx;
     --pos;
   }
 
@@ -85,16 +79,13 @@ public:
    */
   void peek(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.front());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto out_mask =
-      kmer::blind_fwd_out_mask(char_out_u, k, masks.fwd_out);
-    const auto in_mask = kmer::blind_rev_in_mask(char_in_u, k, masks.rev_in);
-
-    const auto fwd = kmer::next_forward_hash(fwd_hash, out_mask, char_in_u);
-    const auto rev = kmer::next_reverse_hash(rev_hash, char_out_u, in_mask);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    const auto char_out = static_cast<unsigned char>(buffer[buffer_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    internal::extend_hashes(
+      kmer::next_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::next_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
   }
 
   /**
@@ -102,61 +93,71 @@ public:
    */
   void peek_back(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(kmer.size());
-    const auto char_out_u = static_cast<unsigned char>(kmer.back());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, masks.rev_in);
-    const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, masks.rev_in);
-
-    const auto fwd = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
-    const auto rev = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    const auto back_idx = (buffer_idx == 0) ? get_k() - 1 : buffer_idx - 1;
+    const auto char_out = static_cast<unsigned char>(buffer[back_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    internal::extend_hashes(
+      kmer::prev_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::prev_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
   }
 
   /**
    * Get the array of current hash values (length = \p get_hash_num())
    * @return Pointer to the hash array
    */
-  const HASH_TYPE* hashes() const { return hash_arr.data(); }
+  [[nodiscard]] const HASH_TYPE* hashes() const noexcept
+  {
+    return hash_arr.data();
+  }
 
   /**
    * Get the position of last hashed k-mer or the k-mer to be hashed if roll()
    * has never been called on this NtHash object.
    * @return Position of the most recently hashed k-mer's first base-pair
    */
-  ssize_t get_pos() const { return pos; }
+  [[nodiscard]] ssize_t get_pos() const noexcept { return pos; }
 
   /**
    * Get the number of hashes generated per k-mer.
    * @return Number of hashes per k-mer
    */
-  unsigned get_hash_num() const { return hash_arr.size(); }
+  [[nodiscard]] unsigned get_hash_num() const noexcept
+  {
+    return hash_arr.size();
+  }
 
   /**
    * Get the length of the k-mers.
    * @return \p k
    */
-  K_TYPE get_k() const { return static_cast<K_TYPE>(kmer.size()); }
+  [[nodiscard]] K_TYPE get_k() const noexcept
+  {
+    return static_cast<K_TYPE>(buffer.size());
+  }
 
   /**
    * Get the hash value of the forward strand.
    * @return Forward hash value
    */
-  HASH_TYPE get_forward_hash() const { return fwd_hash; }
+  [[nodiscard]] HASH_TYPE get_forward_hash() const noexcept { return fwd_hash; }
 
   /**
    * Get the hash value of the reverse strand.
    * @return Reverse-complement hash value
    */
-  HASH_TYPE get_reverse_hash() const { return rev_hash; }
+  [[nodiscard]] HASH_TYPE get_reverse_hash() const noexcept { return rev_hash; }
 
 private:
-  std::string kmer;
+  std::string buffer;
+  size_t buffer_idx;
   ssize_t pos;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
-  StrandMasks masks;
   std::vector<HASH_TYPE> hash_arr;
+  const RollKTable& rollk_tab;
+  const HASH_TYPE k_mult;
 };
 
 } // namespace nthash::kmer

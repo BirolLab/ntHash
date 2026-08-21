@@ -2,7 +2,6 @@
 
 #include "utils.hpp"
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -34,24 +33,22 @@ public:
     , k(k)
     , pos(pos)
     , initialized(false)
-    , masks(k)
     , hash_arr(num_hashes)
+    , rollk_tab(generate_rollk_table(k))
     , k_mult(static_cast<HASH_TYPE>(k) * internal::MULTISEED)
   {
     if (k == 0) {
       throw std::invalid_argument("NtHash: k must be greater than 0");
     }
     if (this->seq.size() < k) {
-      std::ostringstream err;
-      err << "NtHash: sequence length (" << this->seq.size() << ") ";
-      err << "is smaller than k (" << k << ")";
-      throw std::invalid_argument(err.str());
+      throw std::invalid_argument("NtHash: sequence is shorter than k (" +
+                                  std::to_string(seq_len) + " < " +
+                                  std::to_string(k) + ")");
     }
     if (pos > this->seq.size() - k) {
-      std::ostringstream err;
-      err << "NtHash: passed position (" << pos << ") ";
-      err << "is larger than sequence length (" << this->seq.size() << ")";
-      throw std::invalid_argument(err.str());
+      throw std::invalid_argument(
+        "NtHash: position is out of bounds (" + std::to_string(pos) + " > " +
+        std::to_string(seq_len) + " + " + std::to_string(k) + ")");
     }
   }
 
@@ -87,16 +84,14 @@ public:
     if (pos >= seq.size() - k) {
       return false;
     }
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
     const auto char_in = static_cast<unsigned char>(seq[pos + k]);
     if (internal::SEED_TAB[char_in] == internal::SEED_N) {
-      pos += k;
+      pos += k + 1;
       return init();
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos]);
-    const auto mask_out = masks.fwd_out[internal::CONVERT_TAB[char_out]];
-    fwd_hash = kmer::next_forward_hash(fwd_hash, mask_out, char_in);
-    const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in]];
-    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
+    fwd_hash = kmer::next_forward_hash(fwd_hash, char_out, char_in, rollk_tab);
+    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, char_in, rollk_tab);
     internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
     ++pos;
     return true;
@@ -114,6 +109,7 @@ public:
     if (pos == 0) {
       return false;
     }
+    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
     const auto char_in = static_cast<unsigned char>(seq[pos - 1]);
     if (internal::SEED_TAB[char_in] == internal::SEED_N) {
       if (pos >= k) {
@@ -122,12 +118,9 @@ public:
       }
       return false;
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
-    const auto mask_in = masks.rev_in[3 - internal::CONVERT_TAB[char_in]];
-    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, mask_in);
-    const auto mask_out = masks.rev_in[internal::CONVERT_TAB[char_out]];
-    rev_hash = kmer::prev_reverse_hash(rev_hash, mask_out, char_in);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, char_in, rollk_tab);
+    rev_hash = kmer::prev_reverse_hash(rev_hash, char_out, char_in, rollk_tab);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
     --pos;
     return true;
   }
@@ -169,16 +162,16 @@ public:
     if (!initialized && !init()) {
       return false;
     }
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    if (internal::SEED_TAB[char_in_u] == internal::SEED_N) {
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    if (internal::SEED_TAB[uchar_in] == internal::SEED_N) {
       return false;
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos]);
-    const auto mask_out = masks.fwd_out[internal::CONVERT_TAB[char_out]];
-    const auto fwd = kmer::next_forward_hash(fwd_hash, mask_out, char_in_u);
-    const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in_u]];
-    const auto rev = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    internal::extend_hashes(
+      kmer::next_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::next_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
     return true;
   }
 
@@ -191,16 +184,16 @@ public:
     if (!initialized && !init()) {
       return false;
     }
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    if (internal::SEED_TAB[char_in_u] == internal::SEED_N) {
+    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    if (internal::SEED_TAB[uchar_in] == internal::SEED_N) {
       return false;
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
-    const auto mask_in = masks.rev_in[3 - internal::CONVERT_TAB[char_in_u]];
-    const auto fwd = kmer::prev_forward_hash(fwd_hash, char_out, mask_in);
-    const auto mask_out = masks.rev_in[internal::CONVERT_TAB[char_out]];
-    const auto rev = kmer::prev_reverse_hash(rev_hash, mask_out, char_in_u);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    internal::extend_hashes(
+      kmer::prev_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::prev_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
     return true;
   }
 
@@ -254,8 +247,8 @@ private:
   bool initialized;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
-  kmer::StrandMasks masks;
   std::vector<HASH_TYPE> hash_arr;
+  const RollKTable& rollk_tab;
   const HASH_TYPE k_mult;
 
   /**
