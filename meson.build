@@ -81,4 +81,6 @@ if get_option('develop')
         warning('Documentation will not be updated without doxygen')
     endif
 
+    subdir('scripts/generate_seeds')
+
 endif
