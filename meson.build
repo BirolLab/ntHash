@@ -53,11 +53,6 @@ nthash_dep = declare_dependency(
 if get_option('develop')
     message('Developer mode enabled')
 
-    executable(
-        'bench',
-        'examples/benchmark.cpp',
-        dependencies: [nthash_dep],
-    )
     test_exec = executable(
         'tests',
         'tests/tests.cpp',
@@ -81,6 +76,6 @@ if get_option('develop')
         warning('Documentation will not be updated without doxygen')
     endif
 
-    subdir('scripts/generate_seeds')
+    subdir('scripts')
 
 endif
