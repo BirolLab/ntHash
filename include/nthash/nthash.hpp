@@ -11,7 +11,6 @@
 #include <deque>
 #include <limits>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -22,10 +21,11 @@
 namespace nthash::internal {
 
 // 64-bit random seeds corresponding to bases and their complements
-constexpr uint64_t SEED_A = 0x3eb13b9046685257;
-constexpr uint64_t SEED_C = 0x22310aefe5d92bca;
-constexpr uint64_t SEED_G = 0x83677b6b400f4886;
-constexpr uint64_t SEED_T = 0x9fe74a14e3be311b;
+// from the generate_seeds script with rng=42
+constexpr uint64_t SEED_A = 0x1c80317fa3b1799d;
+constexpr uint64_t SEED_C = 0xbdd640fb06671ad1;
+constexpr uint64_t SEED_G = 0x3eb13b9046685257;
+constexpr uint64_t SEED_T = 0x23b8c1e9392456de;
 constexpr uint64_t SEED_N = 0x0000000000000000;
 
 // offset for the complement base in the random seeds table
@@ -214,42 +214,41 @@ namespace nthash::kmer {
 
 using internal::HASH_TYPE;
 using internal::K_TYPE;
+using RollKTable = std::array<internal::HASH_TYPE, internal::ASCII_SIZE>;
 
 /**
- * Container for the two strand-specific forward-out and reverse-in masks.
- * Forward-out mask: k-th rotation of each base's seed.
- * Reverse-in mask: (k-1)-th rotation of each base's complement's seed.
- * Masks are cached for k, since k doesn't normally change in a single run.
+ * Generates a thread-safe, lock-free lookup table for roll^k values.
+ *
+ * This function utilizes thread-local storage to cache precomputed rolls.
+ * The table is only recalculated if the k-mer size differs from the
+ * previously cached size for the calling thread, leading to zero allocation
+ * overhead and O(1) lookups during hot loops.
+ * @param k The k-mer size used to compute the roll^k masks
+ * @return A const reference to the thread-local precomputed roll^k table
  */
-struct StrandMasks
+[[nodiscard]] inline const RollKTable&
+generate_rollk_table(K_TYPE k) noexcept
 {
-  std::array<HASH_TYPE, 4> fwd_out{};
-  std::array<HASH_TYPE, 4> rev_in{};
-
-  constexpr StrandMasks() noexcept = default;
-
-  StrandMasks(K_TYPE k)
-  {
-    static K_TYPE cached_k = 0;
-    static std::array<HASH_TYPE, 4> cached_fwd;
-    static std::array<HASH_TYPE, 4> cached_rev;
-    if (k != cached_k) {
-      constexpr std::array<HASH_TYPE, 4> seeds{
-        internal::SEED_A, internal::SEED_C, internal::SEED_G, internal::SEED_T
-      };
-      for (size_t i = 0; i < seeds.size(); i++) {
-        fwd_out[i] = internal::roll_next(seeds[i], k);
-        rev_in[i] = internal::roll_next(seeds[seeds.size() - 1 - i], k - 1);
-      }
-      cached_fwd = fwd_out;
-      cached_rev = rev_in;
-      cached_k = k;
-    } else {
-      fwd_out = cached_fwd;
-      rev_in = cached_rev;
-    }
+  thread_local K_TYPE cached_k = 0;
+  thread_local RollKTable table{};
+  if (k != cached_k) {
+    const auto mask_A = internal::roll_next(internal::SEED_A, k);
+    const auto mask_C = internal::roll_next(internal::SEED_C, k);
+    const auto mask_G = internal::roll_next(internal::SEED_G, k);
+    const auto mask_T = internal::roll_next(internal::SEED_T, k);
+    table['A'] = table['a'] = mask_A;
+    table['C'] = table['c'] = mask_C;
+    table['G'] = table['g'] = mask_G;
+    table['T'] = table['t'] = table['U'] = table['u'] = mask_T;
+    table['A' & internal::CP_OFF] = mask_T;
+    table['C' & internal::CP_OFF] = mask_G;
+    table['T' & internal::CP_OFF] = mask_A;
+    table['U' & internal::CP_OFF] = mask_A;
+    table['G' & internal::CP_OFF] = mask_C;
+    cached_k = k;
   }
-};
+  return table;
+}
 
 /**
  * Generate the forward-strand hash value of the first k-mer in the sequence.
@@ -266,38 +265,6 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
     h_val = internal::roll_next(h_val) ^ internal::SEED_TAB[index];
   }
   return h_val;
-}
-
-/**
- * Perform a roll operation on the forward strand.
- * @param fh_val Previous hash value computed for the sequence
- * @param out_mask Character mask to be removed (k-times roll of char_out)
- * @param char_in Character to be included
- * @return Rolled forward hash value
- */
-[[nodiscard]] inline constexpr HASH_TYPE
-next_forward_hash(HASH_TYPE fh_val,
-                  HASH_TYPE out_mask,
-                  unsigned char char_in) noexcept
-{
-  const auto in_mask = internal::SEED_TAB[char_in];
-  return nthash::internal::roll_next(fh_val) ^ in_mask ^ out_mask;
-}
-
-/**
- * Perform a roll back operation on the forward strand.
- * @param fh_val Previous hash value computed for the sequence
- * @param char_out Character to be removed
- * @param in_mask Character mask to be included (k-th rotation of char_in)
- * @return Forward hash value rolled back
- */
-[[nodiscard]] inline constexpr HASH_TYPE
-prev_forward_hash(HASH_TYPE fh_val,
-                  unsigned char char_out,
-                  HASH_TYPE in_mask) noexcept
-{
-  const auto out_mask = internal::SEED_TAB[char_out];
-  return nthash::internal::roll_back(fh_val ^ out_mask) ^ in_mask;
 }
 
 /**
@@ -320,80 +287,169 @@ base_reverse_hash(const char* seq, K_TYPE k) noexcept
 }
 
 /**
- * Perform a roll operation on the reverse-complement.
+ * Perform a roll operation on the forward strand by removing char_out and
+ * including char_in.
+ * @param fh_val Previous forward hash value computed for the sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the sliding window
+ * @param char_in Character entering the sliding window
+ * @return Rolled forward hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+next_forward_hash(HASH_TYPE fh_val,
+                  unsigned k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto out_mask = internal::roll_next(internal::SEED_TAB[char_out], k);
+  const auto in_mask = internal::SEED_TAB[char_in];
+  return nthash::internal::roll_next(fh_val) ^ in_mask ^ out_mask;
+}
+
+/**
+ * Perform a roll operation on the forward strand using a precomputed roll^k
+ * table.
+ * @param fh_val Previous forward hash value computed for the sequence
+ * @param char_out Character leaving the sliding window
+ * @param char_in Character entering the sliding window
+ * @param rollk_table roll^k table generated using generate_rollk_table(k)
+ * @return Rolled forward hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+next_forward_hash(HASH_TYPE fh_val,
+                  unsigned char char_out,
+                  unsigned char char_in,
+                  const RollKTable& rollk_table) noexcept
+{
+  const auto out_mask = rollk_table[char_out];
+  const auto in_mask = internal::SEED_TAB[char_in];
+  return nthash::internal::roll_next(fh_val) ^ in_mask ^ out_mask;
+}
+
+/**
+ * Perform a roll operation on the reverse-complement strand by removing
+ * char_out and including char_in from the forward sequence.
  * @param rh_val Previous reverse-complement hash value computed for the
  * sequence
- * @param char_out Character to be removed
- * @param in_mask Character mask to be included (k-th rotation of char_in)
- * @return Rolled hash value for the reverse-complement
+ * @param k k-mer size
+ * @param char_out Character leaving the forward sliding window
+ * @param char_in Character entering the forward sliding window
+ * @return Rolled reverse-complement hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+next_reverse_hash(HASH_TYPE rh_val,
+                  unsigned k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto out_mask = internal::SEED_TAB[char_out & internal::CP_OFF];
+  const auto in_mask =
+    internal::roll_next(internal::SEED_TAB[char_in & internal::CP_OFF], k);
+  return nthash::internal::roll_back(rh_val ^ out_mask ^ in_mask);
+}
+
+/**
+ * Perform a roll operation on the reverse-complement strand using a precomputed
+ * roll^k table.
+ * @param rh_val Previous reverse-complement hash value computed for the
+ * sequence
+ * @param char_out Character leaving the forward sliding window
+ * @param char_in Character entering the forward sliding window
+ * @param rollk_table roll^k table generated using generate_rollk_table(k)
+ * @return Rolled reverse-complement hash value
  */
 [[nodiscard]] inline constexpr HASH_TYPE
 next_reverse_hash(HASH_TYPE rh_val,
                   unsigned char char_out,
-                  HASH_TYPE in_mask) noexcept
+                  unsigned char char_in,
+                  const RollKTable& rollk_table) noexcept
 {
   const auto out_mask = internal::SEED_TAB[char_out & internal::CP_OFF];
-  return nthash::internal::roll_back(rh_val ^ out_mask) ^ in_mask;
+  const auto in_mask = rollk_table[char_in & internal::CP_OFF];
+  return nthash::internal::roll_back(rh_val ^ out_mask ^ in_mask);
 }
 
 /**
- * Perform a roll back operation on the reverse strand.
- * @param rh_val Previous hash value computed for the sequence
- * @param out_mask Character mask to be removed (k-times rotation of char_out)
- * @param char_in Character to be included
- * @return Reverse hash value rolled back
+ * Perform a backward roll operation on the forward strand by removing char_out
+ * and including char_in.
+ * @param fh_val Previous forward hash value computed for the sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the sliding window
+ * @param char_in Character entering the sliding window
+ * @return Rolled forward hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+prev_forward_hash(HASH_TYPE fh_val,
+                  unsigned k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto out_mask = internal::SEED_TAB[char_out];
+  const auto in_mask = internal::roll_next(internal::SEED_TAB[char_in], k);
+  return nthash::internal::roll_back(fh_val ^ out_mask ^ in_mask);
+}
+
+/**
+ * Perform a backward roll operation on the forward strand using a precomputed
+ * roll^k table.
+ * @param fh_val Previous forward hash value computed for the sequence
+ * @param char_out Character leaving the sliding window
+ * @param char_in Character entering the sliding window
+ * @param rollk_table roll^k table generated using generate_rollk_table(k)
+ * @return Rolled forward hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+prev_forward_hash(HASH_TYPE fh_val,
+                  unsigned char char_out,
+                  unsigned char char_in,
+                  const RollKTable& rollk_table) noexcept
+{
+  const auto out_mask = internal::SEED_TAB[char_out];
+  const auto in_mask = rollk_table[char_in];
+  return nthash::internal::roll_back(fh_val ^ out_mask ^ in_mask);
+}
+
+/**
+ * Perform a backward roll operation on the reverse-complement strand by
+ * removing char_out and including char_in from the forward sequence.
+ * @param rh_val Previous reverse-complement hash value computed for the
+ * sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the forward sliding window
+ * @param char_in Character entering the forward sliding window
+ * @return Rolled reverse-complement hash value
  */
 [[nodiscard]] inline constexpr HASH_TYPE
 prev_reverse_hash(HASH_TYPE rh_val,
-                  HASH_TYPE out_mask,
+                  unsigned k,
+                  unsigned char char_out,
                   unsigned char char_in) noexcept
 {
+  const auto out_mask =
+    internal::roll_next(internal::SEED_TAB[char_out & internal::CP_OFF], k);
   const auto in_mask = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return nthash::internal::roll_next(rh_val ^ out_mask) ^ in_mask;
+  return nthash::internal::roll_next(rh_val) ^ in_mask ^ out_mask;
 }
 
-inline HASH_TYPE
-blind_fwd_out_mask(unsigned char c,
-                   K_TYPE k,
-                   const std::array<HASH_TYPE, 4>& fwd_out_mask)
+/**
+ * Perform a backward roll operation on the reverse-complement strand using a
+ * precomputed roll^k table.
+ * @param rh_val Previous reverse-complement hash value computed for the
+ * sequence
+ * @param char_out Character leaving the forward sliding window
+ * @param char_in Character entering the forward sliding window
+ * @param rollk_table roll^k table generated using generate_rollk_table(k)
+ * @return Rolled reverse-complement hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+prev_reverse_hash(HASH_TYPE rh_val,
+                  unsigned char char_out,
+                  unsigned char char_in,
+                  const RollKTable& rollk_table) noexcept
 {
-  const auto loc = internal::CONVERT_TAB[c];
-  return loc < 4 ? fwd_out_mask[loc]
-                 : internal::roll_next(internal::SEED_TAB[c],
-                                       static_cast<unsigned>(k));
-}
-
-inline HASH_TYPE
-blind_rev_in_mask(unsigned char c,
-                  K_TYPE k,
-                  const std::array<HASH_TYPE, 4>& rev_in_mask)
-{
-  const auto loc = internal::CONVERT_TAB[c];
-  return loc < 4 ? rev_in_mask[loc]
-                 : internal::roll_next(internal::SEED_TAB[c & internal::CP_OFF],
-                                       static_cast<unsigned>(k) - 1);
-}
-
-inline HASH_TYPE
-blind_fwd_in_mask(unsigned char c,
-                  K_TYPE k,
-                  const std::array<HASH_TYPE, 4>& rev_in_mask)
-{
-  const auto loc = internal::CONVERT_TAB[c];
-  return loc < 4 ? rev_in_mask[3 - loc]
-                 : internal::roll_next(internal::SEED_TAB[c],
-                                       static_cast<unsigned>(k) - 1);
-}
-
-inline HASH_TYPE
-blind_rev_out_mask(unsigned char c,
-                   K_TYPE k,
-                   const std::array<HASH_TYPE, 4>& fwd_out_mask)
-{
-  const auto loc = internal::CONVERT_TAB[c];
-  return loc < 4 ? fwd_out_mask[3 - loc]
-                 : internal::roll_next(internal::SEED_TAB[c & internal::CP_OFF],
-                                       static_cast<unsigned>(k));
+  const auto out_mask = rollk_table[char_out & internal::CP_OFF];
+  const auto in_mask = internal::SEED_TAB[char_in & internal::CP_OFF];
+  return nthash::internal::roll_next(rh_val) ^ in_mask ^ out_mask;
 }
 
 } // namespace nthash::kmer
@@ -420,16 +476,18 @@ public:
    */
   BlindNtHash(const char* seq, unsigned num_hashes, K_TYPE k, ssize_t pos = 0)
     : buffer(seq + pos, seq + pos + k)
+    , buffer_idx(0)
     , pos(pos)
-    , masks(k)
     , hash_arr(num_hashes)
+    , rollk_tab(generate_rollk_table(k))
+    , k_mult(static_cast<HASH_TYPE>(k) * internal::MULTISEED)
   {
     if (k == 0) {
       throw std::invalid_argument("BlindNtHash: k must be greater than 0");
     }
     fwd_hash = kmer::base_forward_hash(seq + pos, k);
     rev_hash = kmer::base_reverse_hash(seq + pos, k);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
   }
 
   /**
@@ -440,18 +498,15 @@ public:
    */
   void roll(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(buffer.size());
-    const auto char_out_u = static_cast<unsigned char>(buffer.front());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto out_mask =
-      kmer::blind_fwd_out_mask(char_out_u, k, masks.fwd_out);
-    const auto in_mask = kmer::blind_rev_in_mask(char_in_u, k, masks.rev_in);
-
-    fwd_hash = kmer::next_forward_hash(fwd_hash, out_mask, char_in_u);
-    rev_hash = kmer::next_reverse_hash(rev_hash, char_out_u, in_mask);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
-    buffer.erase(0, 1);
-    buffer.push_back(char_in);
+    const auto char_out = static_cast<unsigned char>(buffer[buffer_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    fwd_hash = kmer::next_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab);
+    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+    buffer[buffer_idx] = char_in;
+    if (++buffer_idx == get_k()) {
+      buffer_idx = 0;
+    }
     ++pos;
   }
 
@@ -460,17 +515,14 @@ public:
    */
   void roll_back(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(buffer.size());
-    const auto char_out_u = static_cast<unsigned char>(buffer.back());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, masks.rev_in);
-    const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, masks.rev_in);
-
-    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
-    rev_hash = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
-    buffer.pop_back();
-    buffer.insert(buffer.begin(), char_in);
+    const auto back_idx = (buffer_idx == 0) ? get_k() - 1 : buffer_idx - 1;
+    const auto char_out = static_cast<unsigned char>(buffer[back_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab);
+    rev_hash = kmer::prev_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+    buffer[back_idx] = char_in;
+    buffer_idx = back_idx;
     --pos;
   }
 
@@ -479,16 +531,13 @@ public:
    */
   void peek(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(buffer.size());
-    const auto char_out_u = static_cast<unsigned char>(buffer.front());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto out_mask =
-      kmer::blind_fwd_out_mask(char_out_u, k, masks.fwd_out);
-    const auto in_mask = kmer::blind_rev_in_mask(char_in_u, k, masks.rev_in);
-
-    const auto fwd = kmer::next_forward_hash(fwd_hash, out_mask, char_in_u);
-    const auto rev = kmer::next_reverse_hash(rev_hash, char_out_u, in_mask);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    const auto char_out = static_cast<unsigned char>(buffer[buffer_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    internal::extend_hashes(
+      kmer::next_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::next_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
   }
 
   /**
@@ -496,61 +545,71 @@ public:
    */
   void peek_back(char char_in)
   {
-    const auto k = static_cast<K_TYPE>(buffer.size());
-    const auto char_out_u = static_cast<unsigned char>(buffer.back());
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    const auto in_mask = kmer::blind_fwd_in_mask(char_in_u, k, masks.rev_in);
-    const auto out_mask = kmer::blind_rev_in_mask(char_out_u, k, masks.rev_in);
-
-    const auto fwd = kmer::prev_forward_hash(fwd_hash, char_out_u, in_mask);
-    const auto rev = kmer::prev_reverse_hash(rev_hash, out_mask, char_in_u);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    const auto back_idx = (buffer_idx == 0) ? get_k() - 1 : buffer_idx - 1;
+    const auto char_out = static_cast<unsigned char>(buffer[back_idx]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    internal::extend_hashes(
+      kmer::prev_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::prev_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
   }
 
   /**
    * Get the array of current hash values (length = \p get_hash_num())
    * @return Pointer to the hash array
    */
-  const HASH_TYPE* hashes() const { return hash_arr.data(); }
+  [[nodiscard]] const HASH_TYPE* hashes() const noexcept
+  {
+    return hash_arr.data();
+  }
 
   /**
    * Get the position of last hashed k-mer or the k-mer to be hashed if roll()
    * has never been called on this NtHash object.
    * @return Position of the most recently hashed k-mer's first base-pair
    */
-  ssize_t get_pos() const { return pos; }
+  [[nodiscard]] ssize_t get_pos() const noexcept { return pos; }
 
   /**
    * Get the number of hashes generated per k-mer.
    * @return Number of hashes per k-mer
    */
-  unsigned get_hash_num() const { return hash_arr.size(); }
+  [[nodiscard]] unsigned get_hash_num() const noexcept
+  {
+    return hash_arr.size();
+  }
 
   /**
    * Get the length of the k-mers.
    * @return \p k
    */
-  K_TYPE get_k() const { return static_cast<K_TYPE>(buffer.size()); }
+  [[nodiscard]] K_TYPE get_k() const noexcept
+  {
+    return static_cast<K_TYPE>(buffer.size());
+  }
 
   /**
    * Get the hash value of the forward strand.
    * @return Forward hash value
    */
-  HASH_TYPE get_forward_hash() const { return fwd_hash; }
+  [[nodiscard]] HASH_TYPE get_forward_hash() const noexcept { return fwd_hash; }
 
   /**
    * Get the hash value of the reverse strand.
    * @return Reverse-complement hash value
    */
-  HASH_TYPE get_reverse_hash() const { return rev_hash; }
+  [[nodiscard]] HASH_TYPE get_reverse_hash() const noexcept { return rev_hash; }
 
 private:
   std::string buffer;
+  size_t buffer_idx;
   ssize_t pos;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
-  StrandMasks masks;
   std::vector<HASH_TYPE> hash_arr;
+  const RollKTable& rollk_tab;
+  const HASH_TYPE k_mult;
 };
 
 } // namespace nthash::kmer
@@ -584,24 +643,22 @@ public:
     , k(k)
     , pos(pos)
     , initialized(false)
-    , masks(k)
     , hash_arr(num_hashes)
+    , rollk_tab(generate_rollk_table(k))
     , k_mult(static_cast<HASH_TYPE>(k) * internal::MULTISEED)
   {
     if (k == 0) {
       throw std::invalid_argument("NtHash: k must be greater than 0");
     }
     if (this->seq.size() < k) {
-      std::ostringstream err;
-      err << "NtHash: sequence length (" << this->seq.size() << ") ";
-      err << "is smaller than k (" << k << ")";
-      throw std::invalid_argument(err.str());
+      throw std::invalid_argument("NtHash: sequence is shorter than k (" +
+                                  std::to_string(seq_len) + " < " +
+                                  std::to_string(k) + ")");
     }
     if (pos > this->seq.size() - k) {
-      std::ostringstream err;
-      err << "NtHash: passed position (" << pos << ") ";
-      err << "is larger than sequence length (" << this->seq.size() << ")";
-      throw std::invalid_argument(err.str());
+      throw std::invalid_argument(
+        "NtHash: position is out of bounds (" + std::to_string(pos) + " > " +
+        std::to_string(seq_len) + " + " + std::to_string(k) + ")");
     }
   }
 
@@ -637,16 +694,14 @@ public:
     if (pos >= seq.size() - k) {
       return false;
     }
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
     const auto char_in = static_cast<unsigned char>(seq[pos + k]);
     if (internal::SEED_TAB[char_in] == internal::SEED_N) {
-      pos += k;
+      pos += k + 1;
       return init();
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos]);
-    const auto mask_out = masks.fwd_out[internal::CONVERT_TAB[char_out]];
-    fwd_hash = kmer::next_forward_hash(fwd_hash, mask_out, char_in);
-    const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in]];
-    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
+    fwd_hash = kmer::next_forward_hash(fwd_hash, char_out, char_in, rollk_tab);
+    rev_hash = kmer::next_reverse_hash(rev_hash, char_out, char_in, rollk_tab);
     internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
     ++pos;
     return true;
@@ -664,6 +719,7 @@ public:
     if (pos == 0) {
       return false;
     }
+    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
     const auto char_in = static_cast<unsigned char>(seq[pos - 1]);
     if (internal::SEED_TAB[char_in] == internal::SEED_N) {
       if (pos >= k) {
@@ -672,12 +728,9 @@ public:
       }
       return false;
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
-    const auto mask_in = masks.rev_in[3 - internal::CONVERT_TAB[char_in]];
-    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, mask_in);
-    const auto mask_out = masks.rev_in[internal::CONVERT_TAB[char_out]];
-    rev_hash = kmer::prev_reverse_hash(rev_hash, mask_out, char_in);
-    internal::extend_hashes(fwd_hash, rev_hash, k, hash_arr);
+    fwd_hash = kmer::prev_forward_hash(fwd_hash, char_out, char_in, rollk_tab);
+    rev_hash = kmer::prev_reverse_hash(rev_hash, char_out, char_in, rollk_tab);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
     --pos;
     return true;
   }
@@ -719,16 +772,16 @@ public:
     if (!initialized && !init()) {
       return false;
     }
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    if (internal::SEED_TAB[char_in_u] == internal::SEED_N) {
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    if (internal::SEED_TAB[uchar_in] == internal::SEED_N) {
       return false;
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos]);
-    const auto mask_out = masks.fwd_out[internal::CONVERT_TAB[char_out]];
-    const auto fwd = kmer::next_forward_hash(fwd_hash, mask_out, char_in_u);
-    const auto mask_in = masks.rev_in[internal::CONVERT_TAB[char_in_u]];
-    const auto rev = kmer::next_reverse_hash(rev_hash, char_out, mask_in);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    internal::extend_hashes(
+      kmer::next_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::next_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
     return true;
   }
 
@@ -741,16 +794,16 @@ public:
     if (!initialized && !init()) {
       return false;
     }
-    const auto char_in_u = static_cast<unsigned char>(char_in);
-    if (internal::SEED_TAB[char_in_u] == internal::SEED_N) {
+    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    if (internal::SEED_TAB[uchar_in] == internal::SEED_N) {
       return false;
     }
-    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
-    const auto mask_in = masks.rev_in[3 - internal::CONVERT_TAB[char_in_u]];
-    const auto fwd = kmer::prev_forward_hash(fwd_hash, char_out, mask_in);
-    const auto mask_out = masks.rev_in[internal::CONVERT_TAB[char_out]];
-    const auto rev = kmer::prev_reverse_hash(rev_hash, mask_out, char_in_u);
-    internal::extend_hashes(fwd, rev, k, hash_arr);
+    internal::extend_hashes(
+      kmer::prev_forward_hash(fwd_hash, char_out, uchar_in, rollk_tab),
+      kmer::prev_reverse_hash(rev_hash, char_out, uchar_in, rollk_tab),
+      k_mult,
+      hash_arr);
     return true;
   }
 
@@ -804,8 +857,8 @@ private:
   bool initialized;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
-  kmer::StrandMasks masks;
   std::vector<HASH_TYPE> hash_arr;
+  const RollKTable& rollk_tab;
   const HASH_TYPE k_mult;
 
   /**
