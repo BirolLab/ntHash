@@ -105,7 +105,7 @@ Before sending a PR, please make sure that:
 - the single header is up-to-date by running `ninja nthash.hpp` in build
 - tests pass by running `meson test -v -C build` in the project directory
 - code is formatted properly by running `ninja clang-format` in the `build` folder (requires `clang-format`)
-- coding standards have been met by making sure running `ninja clang-tidy-check` in `build` returns no errors (requires `clang-tools`)
+- coding standards have been met by making sure running `ninja clang-tidy` in `build` returns no errors (requires `clang-tools`)
 - documentation is up-to-date by running `ninja docs` in `build` (requires [doxygen](https://www.doxygen.nl/))
 
 # Publications
