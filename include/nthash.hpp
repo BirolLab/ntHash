@@ -54,7 +54,7 @@ generate_convert_table() noexcept
 {
   std::array<uint8_t, ASCII_SIZE> tab{};
   for (auto& val : tab) {
-    val = 255;
+    val = ASCII_SIZE - 1;
   }
   tab['A'] = tab['a'] = 0;
   tab['C'] = tab['c'] = 1;
@@ -68,7 +68,7 @@ generate_rc_convert_table() noexcept
 {
   std::array<uint8_t, ASCII_SIZE> tab{};
   for (auto& val : tab) {
-    val = 255;
+    val = ASCII_SIZE - 1;
   }
   tab['A'] = tab['a'] = 3;
   tab['C'] = tab['c'] = 2;
@@ -199,7 +199,7 @@ extend_hashes(HASH_TYPE fwd_hash,
               std::vector<HASH_TYPE>& hash_array) noexcept
 {
   const auto k_mult = static_cast<HASH_TYPE>(k) * MULTISEED;
-  return extend_hashes(fwd_hash, rev_hash, k_mult, hash_array);
+  extend_hashes(fwd_hash, rev_hash, k_mult, hash_array);
 }
 
 } // namespace nthash::internal
@@ -232,19 +232,19 @@ generate_rollk_table(K_TYPE k) noexcept
   thread_local K_TYPE cached_k = 0;
   thread_local RollKTable table{};
   if (k != cached_k) {
-    const auto mask_A = internal::roll_next(internal::SEED_A, k);
-    const auto mask_C = internal::roll_next(internal::SEED_C, k);
-    const auto mask_G = internal::roll_next(internal::SEED_G, k);
-    const auto mask_T = internal::roll_next(internal::SEED_T, k);
-    table['A'] = table['a'] = mask_A;
-    table['C'] = table['c'] = mask_C;
-    table['G'] = table['g'] = mask_G;
-    table['T'] = table['t'] = table['U'] = table['u'] = mask_T;
-    table['A' & internal::CP_OFF] = mask_T;
-    table['C' & internal::CP_OFF] = mask_G;
-    table['T' & internal::CP_OFF] = mask_A;
-    table['U' & internal::CP_OFF] = mask_A;
-    table['G' & internal::CP_OFF] = mask_C;
+    const auto rollk_a = internal::roll_next(internal::SEED_A, k);
+    const auto rollk_c = internal::roll_next(internal::SEED_C, k);
+    const auto rollk_g = internal::roll_next(internal::SEED_G, k);
+    const auto rollk_t = internal::roll_next(internal::SEED_T, k);
+    table['A'] = table['a'] = rollk_a;
+    table['C'] = table['c'] = rollk_c;
+    table['G'] = table['g'] = rollk_g;
+    table['T'] = table['t'] = table['U'] = table['u'] = rollk_t;
+    table['A' & internal::CP_OFF] = rollk_t;
+    table['C' & internal::CP_OFF] = rollk_g;
+    table['T' & internal::CP_OFF] = rollk_a;
+    table['U' & internal::CP_OFF] = rollk_a;
+    table['G' & internal::CP_OFF] = rollk_c;
     cached_k = k;
   }
   return table;
@@ -476,7 +476,6 @@ public:
    */
   BlindNtHash(const char* seq, unsigned num_hashes, K_TYPE k, ssize_t pos = 0)
     : buffer(seq + pos, seq + pos + k)
-    , buffer_idx(0)
     , pos(pos)
     , hash_arr(num_hashes)
     , rollk_tab(generate_rollk_table(k))
@@ -603,13 +602,13 @@ public:
 
 private:
   std::string buffer;
-  size_t buffer_idx;
+  size_t buffer_idx{ 0 };
   ssize_t pos;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
   std::vector<HASH_TYPE> hash_arr;
-  const RollKTable& rollk_tab;
-  const HASH_TYPE k_mult;
+  std::reference_wrapper<const RollKTable> rollk_tab;
+  HASH_TYPE k_mult;
 };
 
 } // namespace nthash::kmer
@@ -858,8 +857,8 @@ private:
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
   std::vector<HASH_TYPE> hash_arr;
-  const RollKTable& rollk_tab;
-  const HASH_TYPE k_mult;
+  std::reference_wrapper<const RollKTable> rollk_tab;
+  HASH_TYPE k_mult;
 
   /**
    * Initialize the internal state of the iterator
@@ -1205,7 +1204,8 @@ parse_seeds(const std::vector<std::string>& seed_strings)
 is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
 {
   for (size_t i = k; i-- > 0;) {
-    if (internal::SEED_TAB[(unsigned char)seq[i]] == internal::SEED_N) {
+    if (internal::SEED_TAB[static_cast<unsigned char>(seq[i])] ==
+        internal::SEED_N) {
       pos_n = i;
       return true;
     }
@@ -1241,11 +1241,12 @@ public:
     , rev_hash(new HASH_TYPE[seeds.size()])
     , hash_arr(new HASH_TYPE[num_hashes_per_seed * seeds.size()])
   {
-    if (k == 0)
+    if (k == 0) {
       throw std::invalid_argument("BlindSeedNtHash: k must be greater than 0");
-    if (seeds.empty())
+    }
+    if (seeds.empty()) {
       throw std::invalid_argument("BlindSeedNtHash: empty seeds");
-
+    }
     size_t pos_n = 0;
     if (seed::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
       throw std::invalid_argument(
@@ -1286,11 +1287,12 @@ public:
     , rev_hash(new HASH_TYPE[seeds.size()])
     , hash_arr(new HASH_TYPE[num_hashes_per_seed * seeds.size()])
   {
-    if (k == 0)
+    if (k == 0) {
       throw std::invalid_argument("BlindSeedNtHash: k must be greater than 0");
-    if (seeds.empty())
+    }
+    if (seeds.empty()) {
       throw std::invalid_argument("BlindSeedNtHash: empty seeds");
-
+    }
     size_t pos_n = 0;
     if (seed::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
       throw std::invalid_argument(
@@ -1348,14 +1350,15 @@ public:
                   sizeof(HASH_TYPE));
   }
 
-  BlindSeedNtHash(BlindSeedNtHash&&) = default;
+  BlindSeedNtHash(BlindSeedNtHash&&) noexcept = default;
 
   void roll(char char_in)
   {
     seed::ntmsm64_forward_core(
       [this, char_in](unsigned idx) {
-        if (idx == k)
+        if (idx == k) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx]);
       },
       blocks,
@@ -1380,8 +1383,9 @@ public:
   {
     seed::ntmsm64_backward_core(
       [this, char_in](unsigned idx) {
-        if (idx == 0)
+        if (idx == 0) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx - 1]);
       },
       blocks,
@@ -1419,8 +1423,9 @@ public:
 
     seed::ntmsm64_forward_core(
       [this, char_in](unsigned idx) {
-        if (idx == k)
+        if (idx == k) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx]);
       },
       blocks,
@@ -1454,8 +1459,9 @@ public:
 
     seed::ntmsm64_backward_core(
       [this, char_in](unsigned idx) {
-        if (idx == 0)
+        if (idx == 0) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx - 1]);
       },
       blocks,
@@ -1539,15 +1545,18 @@ public:
     , rev_hash(new HASH_TYPE[seeds.size()])
     , hash_arr(new HASH_TYPE[num_hashes_per_seed * seeds.size()])
   {
-    if (k == 0)
+    if (k == 0) {
       throw std::invalid_argument("SeedNtHash: k must be greater than 0");
-    if (this->seq.size() < k)
+    }
+    if (this->seq.size() < k) {
       throw std::invalid_argument("SeedNtHash: sequence smaller than k");
-    if (pos > this->seq.size() - k)
+    }
+    if (pos > this->seq.size() - k) {
       throw std::invalid_argument("SeedNtHash: invalid pos");
-    if (seeds.empty())
+    }
+    if (seeds.empty()) {
       throw std::invalid_argument("SeedNtHash: empty seeds");
-
+    }
     seed::check_seeds(seeds, k);
     seed::get_blocks(seeds, blocks, monomers);
     init_shift_tables();
@@ -1579,15 +1588,18 @@ public:
     , rev_hash(new HASH_TYPE[seeds.size()])
     , hash_arr(new HASH_TYPE[num_hashes_per_seed * seeds.size()])
   {
-    if (k == 0)
+    if (k == 0) {
       throw std::invalid_argument("SeedNtHash: k must be greater than 0");
-    if (this->seq.size() < k)
+    }
+    if (this->seq.size() < k) {
       throw std::invalid_argument("SeedNtHash: sequence smaller than k");
-    if (pos > this->seq.size() - k)
+    }
+    if (pos > this->seq.size() - k) {
       throw std::invalid_argument("SeedNtHash: invalid pos");
-    if (seeds.empty())
+    }
+    if (seeds.empty()) {
       throw std::invalid_argument("SeedNtHash: empty seeds");
-
+    }
     seed::parsed_seeds_to_blocks(seeds, k, blocks, monomers);
     init_shift_tables();
   }
@@ -1635,21 +1647,21 @@ public:
                   sizeof(HASH_TYPE));
   }
 
-  SeedNtHash(SeedNtHash&&) = default;
+  SeedNtHash(SeedNtHash&&) noexcept = default;
 
   bool roll()
   {
-    if (!initialized)
+    if (!initialized) {
       return init();
-    if (pos >= seq.size() - k)
+    }
+    if (pos >= seq.size() - k) {
       return false;
-
+    }
     size_t pos_n = 0;
     if (seed::is_invalid_kmer(seq.data() + pos + 1, k, pos_n)) {
       pos += pos_n + 1;
       return init();
     }
-
     seed::ntmsm64_forward_core(
       [this](unsigned idx) {
         return static_cast<unsigned char>(seq[pos + idx]);
@@ -1672,16 +1684,16 @@ public:
 
   bool roll_back()
   {
-    if (!initialized)
+    if (!initialized) {
       return init();
-    if (pos == 0)
+    }
+    if (pos == 0) {
       return false;
-
+    }
     size_t pos_n = 0;
     if (seed::is_invalid_kmer(seq.data() + pos - 1, k, pos_n)) {
-      return false; // Safe exit instead of infinite loop
+      return false;
     }
-
     seed::ntmsm64_backward_core(
       [this](unsigned idx) {
         return static_cast<unsigned char>(seq[pos - 1 + idx]);
@@ -1704,16 +1716,17 @@ public:
 
   bool peek()
   {
-    if (pos >= seq.size() - k)
+    if (pos >= seq.size() - k) {
       return false;
+    }
     return peek(seq[pos + k]);
   }
 
   bool peek(char char_in)
   {
-    if (!initialized)
+    if (!initialized) {
       return init();
-
+    }
     const auto n = blocks.size();
     auto fwd_hash_nomonos_cpy = std::make_unique<HASH_TYPE[]>(n);
     auto rev_hash_nomonos_cpy = std::make_unique<HASH_TYPE[]>(n);
@@ -1729,8 +1742,9 @@ public:
 
     seed::ntmsm64_forward_core(
       [this, char_in](unsigned idx) {
-        if (idx == k)
+        if (idx == k) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[pos + idx]);
       },
       blocks,
@@ -1750,16 +1764,17 @@ public:
 
   bool peek_back()
   {
-    if (pos == 0)
+    if (pos == 0) {
       return false;
+    }
     return peek_back(seq[pos - 1]);
   }
 
   bool peek_back(char char_in)
   {
-    if (!initialized)
+    if (!initialized) {
       return init();
-
+    }
     const auto n = blocks.size();
     auto fwd_hash_nomonos_cpy = std::make_unique<HASH_TYPE[]>(n);
     auto rev_hash_nomonos_cpy = std::make_unique<HASH_TYPE[]>(n);
@@ -1775,8 +1790,9 @@ public:
 
     seed::ntmsm64_backward_core(
       [this, char_in](unsigned idx) {
-        if (idx == 0)
+        if (idx == 0) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[pos - 1 + idx]);
       },
       blocks,
@@ -1811,7 +1827,6 @@ private:
   std::vector<SpacedSeedBlocks> blocks;
   std::vector<SpacedSeedMonomers> monomers;
 
-  // O(1) Precomputed shift tables: [rotation_distance][base_index (0-3)]
   std::vector<std::array<HASH_TYPE, 4>> fwd_shift_table;
   std::vector<std::array<HASH_TYPE, 4>> rev_shift_table;
 
