@@ -1,12 +1,14 @@
-{
-  HeaderFilterRegex: '^.*/src/.*\.hpp$',
-  Checks: '*,
+---
+Checks: >
+    *,
+    -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
     -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
     -hicpp-no-array-decay,
     -fuchsia-default-arguments,
     -fuchsia-overloaded-operator,
     -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-    -hicpp-avoid-c-arrays,-google-readability-casting,
+    -hicpp-avoid-c-arrays,
+    -google-readability-casting,
     -cppcoreguidelines-pro-bounds-constant-array-index,
     -modernize-avoid-c-arrays,
     -cppcoreguidelines-avoid-c-arrays,
@@ -20,7 +22,10 @@
     -modernize-use-nodiscard,
     -hicpp-special-member-functions,
     -llvm-header-guard,
+    -google-build-header-guard,
+    -portability-avoid-pragma-once,
     -google-runtime-int,
+    -readability-redundant-inline-specifier,
     -readability-isolate-declaration,
     -fuchsia-default-arguments-calls,
     -modernize-use-trailing-return-type,
@@ -32,7 +37,8 @@
     -android-cloexec-pipe,
     -hicpp-signed-bitwise,
     -cert-err58-cpp,
-    -hicpp-vararg,-abseil-string-find-startswith,
+    -hicpp-vararg,
+    -abseil-string-find-startswith,
     -misc-definitions-in-headers,
     -clang-analyzer-valist.Uninitialized,
     -android-cloexec-open,
@@ -58,16 +64,14 @@
     -llvm-prefer-static-over-anonymous-namespace,
     -readability-math-missing-parentheses,
     -misc-include-cleaner,
-    -readability-identifier-length',
-  WarningsAsErrors: '*',
-  CheckOptions: [
-      { key: readability-identifier-naming.ClassCase,                 value: CamelCase },
-      { key: readability-identifier-naming.VariableCase,              value: lower_case },
-      { key: readability-identifier-naming.FunctionCase,              value: lower_case },
-      { key: readability-identifier-naming.ParameterCase,             value: lower_case },
-      { key: readability-identifier-naming.StaticConstantCase,        value: lower_case },
-      { key: readability-identifier-naming.GlobalConstantCase,        value: UPPER_CASE },
-      { key: readability-identifier-naming.GlobalConstantPointerCase, value: UPPER_CASE },
-      { key: readability-identifier-naming.ConstexprVariableCase,     value: UPPER_CASE },
-  ]
-}
+    -readability-identifier-length,
+WarningsAsErrors: "*"
+CheckOptions:
+    readability-identifier-naming.ClassCase: CamelCase
+    readability-identifier-naming.VariableCase: lower_case
+    readability-identifier-naming.FunctionCase: lower_case
+    readability-identifier-naming.ParameterCase: lower_case
+    readability-identifier-naming.StaticConstantCase: lower_case
+    readability-identifier-naming.GlobalConstantCase: UPPER_CASE
+    readability-identifier-naming.GlobalConstantPointerCase: UPPER_CASE
+    readability-identifier-naming.ConstexprVariableCase: UPPER_CASE
