@@ -8,7 +8,9 @@ jobs:
 
       - script: |
           mkdir -p ~/miniforge3
-          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-$(uname -m).sh -o ~/miniforge3/miniforge.sh          rm -rf  ~/miniforge3/miniforge.sh
+          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-$(uname -m).sh -o ~/miniforge3/miniforge.sh
+          bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
+          rm -rf ~/miniforge3/miniforge.sh
           ~/miniforge3/bin/conda init bash
           ~/miniforge3/bin/conda init zsh
           export CONDA=$(realpath ~/miniforge3/bin)
@@ -26,13 +28,14 @@ jobs:
 
       - script: |
           source activate nthash
-          meson setup build && cd build && ninja
+          meson setup build
+          meson compile -C build
         displayName: "Build the project"
 
       - script: |
           source activate nthash
           set -o errexit -o pipefail
-          cd build && ninja formatted_header && cd ..
+          ninja -C build nthash.hpp
           diff -u include/nthash.hpp build/nthash.hpp || {
             echo "##[error] The single-header include/nthash.hpp is out of date!"
             echo "Please run the amalgamation script and commit the updated header."
@@ -49,17 +52,17 @@ jobs:
 
       - script: |
           source activate nthash
-          cd build && ninja clang-format-check
+          ninja -C build clang-format-check
         displayName: "Check code format"
 
       - script: |
           source activate nthash
-          cd build && ninja clang-tidy
+          ninja -C build clang-tidy
         displayName: "Run clang-tidy"
 
       - script: |
           source activate nthash
-          cd build && meson test --print-errorlogs
+          meson test -v -C build
         displayName: "Run tests"
 
   - job: macos
@@ -72,13 +75,14 @@ jobs:
 
       - script: |
           mkdir -p ~/miniforge3
-          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh -o ~/miniforge3/miniforge.sh          bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
-          rm -rf  ~/miniforge3/miniforge.sh
+          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh -o ~/miniforge3/miniforge.sh
+          bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
+          rm -rf ~/miniforge3/miniforge.sh
           ~/miniforge3/bin/conda init bash
           ~/miniforge3/bin/conda init zsh
           export CONDA=$(realpath ~/miniforge3/bin)
           echo "##vso[task.prependpath]$CONDA"
-        displayName: Install conda
+        displayName: "Install conda"
 
       - script: conda create --yes --quiet --name nthash
         displayName: Create Anaconda environment
@@ -91,13 +95,14 @@ jobs:
 
       - script: |
           source activate nthash
-          meson setup build && cd build && ninja
+          meson setup build
+          meson compile -C build
         displayName: "Build the project"
 
       - script: |
           source activate nthash
           set -o errexit -o pipefail
-          cd build && ninja formatted_header && cd ..
+          ninja -C build nthash.hpp
           diff -u include/nthash.hpp build/nthash.hpp || {
             echo "##[error] The single-header include/nthash.hpp is out of date!"
             echo "Please run the amalgamation script and commit the updated header."
@@ -114,15 +119,15 @@ jobs:
 
       - script: |
           source activate nthash
-          cd build && ninja clang-format-check
+          ninja -C build clang-format-check
         displayName: "Check code format"
 
       - script: |
           source activate nthash
-          cd build && ninja clang-tidy
+          ninja -C build clang-tidy
         displayName: "Run clang-tidy"
 
       - script: |
           source activate nthash
-          cd build && meson test --print-errorlogs
+          meson test -v -C build
         displayName: "Run tests"
