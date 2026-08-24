@@ -69,9 +69,11 @@ if get_option('develop')
           depends: formatted_header,
           output: 'docs',
           command: [doxygen, '@INPUT@'],
-          env: {'DOXY_NTHASH_INPUT': meson.current_build_dir() / 'nthash.hpp'},
-          build_by_default: true,
-          build_always_stale: true
+          env: {
+            'DOXY_NTHASH_INPUT': meson.current_build_dir() / 'nthash.hpp',
+            'DOXY_NTHASH_OUTPUT': meson.project_source_root() / 'docs'
+          },
+          build_by_default: false,
         )
     else
         warning('Documentation will not be updated without doxygen')
