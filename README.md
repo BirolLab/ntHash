@@ -89,7 +89,7 @@ hash = nthash::kmer::next_forward_hash(hash, 'T', 'G', table);
 If you would like to contribute to the development of ntHash, after forking/cloning the repo, create the `build` directory:
 
 ```
-meson setup build -Ddevelop=true
+meson setup build
 ```
 
 Compile the tests and benchmarking scripts using:

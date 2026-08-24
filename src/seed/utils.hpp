@@ -325,7 +325,8 @@ parse_seeds(const std::vector<std::string>& seed_strings)
 is_invalid_kmer(const char* seq, unsigned k, size_t& pos_n)
 {
   for (size_t i = k; i-- > 0;) {
-    if (internal::SEED_TAB[(unsigned char)seq[i]] == internal::SEED_N) {
+    if (internal::SEED_TAB[static_cast<unsigned char>(seq[i])] ==
+        internal::SEED_N) {
       pos_n = i;
       return true;
     }

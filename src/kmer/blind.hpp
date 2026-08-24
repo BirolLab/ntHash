@@ -24,7 +24,6 @@ public:
    */
   BlindNtHash(const char* seq, unsigned num_hashes, K_TYPE k, ssize_t pos = 0)
     : buffer(seq + pos, seq + pos + k)
-    , buffer_idx(0)
     , pos(pos)
     , hash_arr(num_hashes)
     , rollk_tab(generate_rollk_table(k))
@@ -151,13 +150,13 @@ public:
 
 private:
   std::string buffer;
-  size_t buffer_idx;
+  size_t buffer_idx{0};
   ssize_t pos;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
   std::vector<HASH_TYPE> hash_arr;
-  const RollKTable& rollk_tab;
-  const HASH_TYPE k_mult;
+  std::reference_wrapper<const RollKTable> rollk_tab;
+  HASH_TYPE k_mult;
 };
 
 } // namespace nthash::kmer

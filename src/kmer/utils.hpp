@@ -29,19 +29,19 @@ generate_rollk_table(K_TYPE k) noexcept
   thread_local K_TYPE cached_k = 0;
   thread_local RollKTable table{};
   if (k != cached_k) {
-    const auto mask_A = internal::roll_next(internal::SEED_A, k);
-    const auto mask_C = internal::roll_next(internal::SEED_C, k);
-    const auto mask_G = internal::roll_next(internal::SEED_G, k);
-    const auto mask_T = internal::roll_next(internal::SEED_T, k);
-    table['A'] = table['a'] = mask_A;
-    table['C'] = table['c'] = mask_C;
-    table['G'] = table['g'] = mask_G;
-    table['T'] = table['t'] = table['U'] = table['u'] = mask_T;
-    table['A' & internal::CP_OFF] = mask_T;
-    table['C' & internal::CP_OFF] = mask_G;
-    table['T' & internal::CP_OFF] = mask_A;
-    table['U' & internal::CP_OFF] = mask_A;
-    table['G' & internal::CP_OFF] = mask_C;
+    const auto rollk_a = internal::roll_next(internal::SEED_A, k);
+    const auto rollk_c = internal::roll_next(internal::SEED_C, k);
+    const auto rollk_g = internal::roll_next(internal::SEED_G, k);
+    const auto rollk_t = internal::roll_next(internal::SEED_T, k);
+    table['A'] = table['a'] = rollk_a;
+    table['C'] = table['c'] = rollk_c;
+    table['G'] = table['g'] = rollk_g;
+    table['T'] = table['t'] = table['U'] = table['u'] = rollk_t;
+    table['A' & internal::CP_OFF] = rollk_t;
+    table['C' & internal::CP_OFF] = rollk_g;
+    table['T' & internal::CP_OFF] = rollk_a;
+    table['U' & internal::CP_OFF] = rollk_a;
+    table['G' & internal::CP_OFF] = rollk_c;
     cached_k = k;
   }
   return table;

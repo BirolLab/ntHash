@@ -39,7 +39,7 @@ generate_convert_table() noexcept
 {
   std::array<uint8_t, ASCII_SIZE> tab{};
   for (auto& val : tab) {
-    val = 255;
+    val = ASCII_SIZE - 1;
   }
   tab['A'] = tab['a'] = 0;
   tab['C'] = tab['c'] = 1;
@@ -53,7 +53,7 @@ generate_rc_convert_table() noexcept
 {
   std::array<uint8_t, ASCII_SIZE> tab{};
   for (auto& val : tab) {
-    val = 255;
+    val = ASCII_SIZE - 1;
   }
   tab['A'] = tab['a'] = 3;
   tab['C'] = tab['c'] = 2;

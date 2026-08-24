@@ -248,8 +248,8 @@ private:
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
   std::vector<HASH_TYPE> hash_arr;
-  const RollKTable& rollk_tab;
-  const HASH_TYPE k_mult;
+  std::reference_wrapper<const RollKTable> rollk_tab;
+  HASH_TYPE k_mult;
 
   /**
    * Initialize the internal state of the iterator

@@ -36,11 +36,12 @@ public:
     , rev_hash(new HASH_TYPE[seeds.size()])
     , hash_arr(new HASH_TYPE[num_hashes_per_seed * seeds.size()])
   {
-    if (k == 0)
+    if (k == 0) {
       throw std::invalid_argument("BlindSeedNtHash: k must be greater than 0");
-    if (seeds.empty())
+    }
+    if (seeds.empty()) {
       throw std::invalid_argument("BlindSeedNtHash: empty seeds");
-
+    }
     size_t pos_n = 0;
     if (seed::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
       throw std::invalid_argument(
@@ -81,11 +82,12 @@ public:
     , rev_hash(new HASH_TYPE[seeds.size()])
     , hash_arr(new HASH_TYPE[num_hashes_per_seed * seeds.size()])
   {
-    if (k == 0)
+    if (k == 0) {
       throw std::invalid_argument("BlindSeedNtHash: k must be greater than 0");
-    if (seeds.empty())
+    }
+    if (seeds.empty()) {
       throw std::invalid_argument("BlindSeedNtHash: empty seeds");
-
+    }
     size_t pos_n = 0;
     if (seed::is_invalid_kmer(seq_ptr + pos, k, pos_n)) {
       throw std::invalid_argument(
@@ -143,14 +145,15 @@ public:
                   sizeof(HASH_TYPE));
   }
 
-  BlindSeedNtHash(BlindSeedNtHash&&) = default;
+  BlindSeedNtHash(BlindSeedNtHash&&) noexcept = default;
 
   void roll(char char_in)
   {
     seed::ntmsm64_forward_core(
       [this, char_in](unsigned idx) {
-        if (idx == k)
+        if (idx == k) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx]);
       },
       blocks,
@@ -175,8 +178,9 @@ public:
   {
     seed::ntmsm64_backward_core(
       [this, char_in](unsigned idx) {
-        if (idx == 0)
+        if (idx == 0) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx - 1]);
       },
       blocks,
@@ -214,8 +218,9 @@ public:
 
     seed::ntmsm64_forward_core(
       [this, char_in](unsigned idx) {
-        if (idx == k)
+        if (idx == k) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx]);
       },
       blocks,
@@ -249,8 +254,9 @@ public:
 
     seed::ntmsm64_backward_core(
       [this, char_in](unsigned idx) {
-        if (idx == 0)
+        if (idx == 0) {
           return static_cast<unsigned char>(char_in);
+        }
         return static_cast<unsigned char>(seq[idx - 1]);
       },
       blocks,

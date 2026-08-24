@@ -118,7 +118,7 @@ extend_hashes(HASH_TYPE fwd_hash,
               std::vector<HASH_TYPE>& hash_array) noexcept
 {
   const auto k_mult = static_cast<HASH_TYPE>(k) * MULTISEED;
-  return extend_hashes(fwd_hash, rev_hash, k_mult, hash_array);
+  extend_hashes(fwd_hash, rev_hash, k_mult, hash_array);
 }
 
 } // namespace nthash::internal
