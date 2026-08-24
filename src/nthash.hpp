@@ -16,7 +16,7 @@ namespace nthash {
  * are different from the previous version. Useful for tracking differences in
  * saved hashes, e.g., in Bloom filters.
  */
-inline constexpr std::string_view NTHASH_FN_NAME = "ntHash_v2.5";
+inline constexpr std::string_view NTHASH_FN_NAME = "ntHash_v3.0";
 
 static_assert(std::numeric_limits<uint64_t>::max() + 1 == 0,
               "Integers don't overflow on this platform which is necessary for "
