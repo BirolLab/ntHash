@@ -150,7 +150,7 @@ public:
 
 private:
   std::string buffer;
-  size_t buffer_idx{0};
+  size_t buffer_idx{ 0 };
   ssize_t pos;
   HASH_TYPE fwd_hash = 0;
   HASH_TYPE rev_hash = 0;
