@@ -51,38 +51,42 @@ nthash_dep = declare_dependency(
   sources: formatted_header
 )
 
-clang_tidy = find_program('clang-tidy', required: false)
-if clang_tidy.found()
-    run_target(
-      'clang-tidy',
-      command: [clang_tidy, '-p=build', nthash_headers]
-    )
+if get_option('develop')
+  message('Developer mode enabled')
+
+  clang_tidy = find_program('clang-tidy', required: false)
+  if clang_tidy.found()
+      run_target(
+        'clang-tidy',
+        command: [clang_tidy, '-p=build', nthash_headers]
+      )
+  endif
+
+  test_exec = executable(
+      'tests',
+      'tests/tests.cpp',
+      dependencies: [nthash_dep],
+  )
+  test('tests', test_exec)
+
+  doxygen = find_program('doxygen', required: false)
+  if doxygen.found()
+      custom_target(
+        'docs',
+        input: 'Doxyfile',
+        depends: formatted_header,
+        output: 'docs',
+        command: [doxygen, '@INPUT@'],
+        env: {
+          'DOXY_NTHASH_INPUT': meson.current_build_dir() / 'nthash.hpp',
+          'DOXY_NTHASH_OUTPUT': meson.project_source_root() / 'docs'
+        },
+        build_by_default: false,
+      )
+  else
+      warning('Documentation will not be updated without doxygen')
+  endif
+
+  subdir('scripts')
+
 endif
-
-test_exec = executable(
-    'tests',
-    'tests/tests.cpp',
-    dependencies: [nthash_dep],
-)
-test('tests', test_exec)
-
-doxygen = find_program('doxygen', required: false)
-if doxygen.found()
-    custom_target(
-      'docs',
-      input: 'Doxyfile',
-      depends: formatted_header,
-      output: 'docs',
-      command: [doxygen, '@INPUT@'],
-      env: {
-        'DOXY_NTHASH_INPUT': meson.current_build_dir() / 'nthash.hpp',
-        'DOXY_NTHASH_OUTPUT': meson.project_source_root() / 'docs'
-      },
-      build_by_default: false,
-    )
-else
-    warning('Documentation will not be updated without doxygen')
-endif
-
-subdir('scripts')
-
