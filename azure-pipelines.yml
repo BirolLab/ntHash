@@ -23,12 +23,12 @@ jobs:
       - script: |
           source activate nthash
           conda install --yes -c conda-forge mamba
-          mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja openmp
+          mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja pybind11
         displayName: "Install dependencies"
 
       - script: |
           source activate nthash
-          meson setup build
+          meson setup build -Ddevelop=true
           meson compile -C build
         displayName: "Build the project"
 
@@ -90,12 +90,12 @@ jobs:
       - script: |
           source activate nthash
           conda install --yes -c conda-forge mamba
-          mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja openmp
+          mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja pybind11
         displayName: "Install dependencies"
 
       - script: |
           source activate nthash
-          meson setup build
+          meson setup build -Ddevelop=true
           meson compile -C build
         displayName: "Build the project"
 
