@@ -8,43 +8,37 @@ ntHash is an efficient rolling hash function for k-mers and spaced seeds.
 
 # Installation
 
-Make sure [Meson](https://mesonbuild.com/) is installed on the system.
+You can simply download `nthash.hpp` and drop it directly into your project's include path. No compiling or linking is required.
 
-Download the repo (either from the releases section or close using `git clone https://github.com/BirolLab/ntHash`). Setup meson in an arbitrary directory (e.g. `build`), by running the following command in the project's root (include `--prefix=PREFIX` set the installation prefix to `PREFIX`):
-
-```shell
-meson setup --buildtype=release --prefix=PREFIX build
-```
-
-Then, install the project and its dependencies using:
+If you prefer to install it system-wide using [Meson](https://mesonbuild.com/), run the following in the project root:
 
 ```shell
-meson install -C build 
+meson setup --buildtype=release --prefix=<PREFIX> build
+meson install -C build
 ```
 
-This will install `include/nthash` and `lib/libnthash.a` to the installation prefix.
+This will copy `nthash.hpp` to your specified `<PREFIX>/include` directory.
 
 # Usage
 
 To use ntHash in a C++ project:
-- Import ntHash in the code using `#include <nthash/nthash.hpp>`
-- Access ntHash classes from the `nthash` namespace
-- Add the `include` directory (pass `-IPREFIX/include` to the compiler)
-- Link the code with `libnthash.a` (i.e. pass `-LPREFIX/lib -lnthash` to the compiler, where `PREFIX` is the installation prefix)
-- Compile your code with `-std=c++17` (and preferably `-O3`) enabled
+- Include the library: `#include <nthash.hpp>`
+- Compile your code with `-std=c++17` (and preferably `-O3`)
 
-Refer to [docs](https://birollab.github.io/ntHash/) for more information.
+Refer to the [docs](https://birollab.github.io/ntHash/) for more information.
 
 # Examples
 
-Generally, the `nthash::NtHash` and `nthash::SeedNtHash` classes are used for hashing sequences:
+## Object-Oriented API
+
+Generally, the `nthash::NtHash` and `nthash::SeedNtHash` classes are the easiest way to hash sequences:
 
 ```C++
 nthash::NtHash nth("TGACTGATCGAGTCGTACTAG", 1, 5);  // 1 hash per 5-mer
 while (nth.roll()) {
     // use nth.hashes() for canonical hashes
-    //     nth.get_forward_hash() for forward strand hashes
-    //     nth.get_reverse_hash() for reverse strand hashes
+    // nth.get_forward_hash() returns forward strand hashes
+    // nth.get_reverse_hash() returns reverse strand hashes
 }
 ```
 
@@ -59,27 +53,59 @@ while (nth.roll()) {
 }
 ```
 
+## Stateless Functional API
+
+You can also use the underlying internal functions directly.
+
+```C++
+#include <nthash.hpp>
+
+unsigned k = 5;
+uint64_t hash = nthash::kmer::base_forward_hash("TGACT", k);
+
+// Roll forward by dropping 'T' and adding 'G'
+hash = nthash::kmer::next_forward_hash(hash, k, 'T', 'G');
+```
+
+## Functional API with Precomputated Tables
+
+For maximum performance, you can generate a thread-local cache table to achieve O(1) rolling operations.
+
+```C++
+#include <nthash.hpp>
+
+unsigned k = 5;
+uint64_t hash = nthash::kmer::base_forward_hash("TGACT", k);
+
+// Generate the table for k=5 (cached for k per-thread)
+const auto& table = nthash::kmer::generate_rollk_table(k);
+
+// Fast roll using the precomputed masks
+hash = nthash::kmer::next_forward_hash(hash, 'T', 'G', table);
+```
+
 # For developers
 
-If you would like to contribute to the development of ntHash, after forking/cloning the repo, create the `build` directory without the release flag:
+If you would like to contribute to the development of ntHash, after forking/cloning the repo, create the `build` directory:
 
 ```
 meson setup build -Ddevelop=true
 ```
 
-Compile the code, tests, and benchmarking script using:
+Compile the tests and benchmarking scripts using:
 
 ```
 meson compile -C build
 ```
 
-If compilation is successful, `libnthash.a` will be available in the `build` folder. The benchmarking script is also compiled as the `bench` binary file in `build`.
+**Note:** ntHash is distributed as a single header file. If you make changes to any of the files in the src/ directory, you must regenerate the single header before committing. You can do this by running `ninja nthash.hpp -C build` in the project root.
 
-Before sending a PR, make sure that:
+Before sending a PR, please make sure that:
 
-- tests pass by running `meson test` in the project directory
-- code is formatted properly by running `ninja clang-format` in the `build` folder (requires `clang-format` to be available)
-- coding standards have been met by making sure running `ninja clang-tidy-check` in `build` returns no errors (requires `clang-tools` to be installed)
+- the single header is up-to-date by running `ninja nthash.hpp` in build
+- tests pass by running `meson test -v -C build` in the project directory
+- code is formatted properly by running `ninja clang-format` in the `build` folder (requires `clang-format`)
+- coding standards have been met by making sure running `ninja clang-tidy-check` in `build` returns no errors (requires `clang-tools`)
 - documentation is up-to-date by running `ninja docs` in `build` (requires [doxygen](https://www.doxygen.nl/))
 
 # Publications
