@@ -42,7 +42,8 @@ formatted_header = custom_target(
   command: [clang_format, '--style=file', '@INPUT@'],
   capture: true,           
   install: true,           
-  install_dir: get_option('includedir')
+  install_dir: get_option('includedir'),
+  build_by_default: true,
 )
 
 nthash_dep = declare_dependency(
