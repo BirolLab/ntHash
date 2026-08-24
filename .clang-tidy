@@ -1,4 +1,5 @@
 {
+  HeaderFilterRegex: '^.*/src/.*\.hpp$',
   Checks: '*,
     -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
     -hicpp-no-array-decay,
