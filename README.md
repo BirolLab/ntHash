@@ -27,8 +27,6 @@ To use ntHash in a C++ project:
 
 Refer to the [docs](https://birollab.github.io/ntHash/) for more information.
 
-# Examples
-
 ## Object-Oriented API
 
 Generally, the `nthash::NtHash` and `nthash::SeedNtHash` classes are the easiest way to hash sequences:
