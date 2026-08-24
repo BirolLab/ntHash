@@ -1,110 +1,128 @@
 jobs:
+  - job: linux
+    pool:
+      vmImage: "ubuntu-latest"
 
-- job: linux
-  pool:
-    vmImage: 'ubuntu-latest'
+    steps:
+      - checkout: self
 
-  steps:
-  - checkout: self
+      - script: |
+          mkdir -p ~/miniforge3
+          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-$(uname -m).sh -o ~/miniforge3/miniforge.sh          rm -rf  ~/miniforge3/miniforge.sh
+          ~/miniforge3/bin/conda init bash
+          ~/miniforge3/bin/conda init zsh
+          export CONDA=$(realpath ~/miniforge3/bin)
+          echo "##vso[task.prependpath]$CONDA"
+        displayName: "Install conda"
 
-  - script: |
-      mkdir -p ~/miniforge3
-      curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh  -o ~/miniforge3/miniforge.sh
-      bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
-      rm -rf  ~/miniforge3/miniforge.sh
-      ~/miniforge3/bin/conda init bash
-      ~/miniforge3/bin/conda init zsh
-      export CONDA=$(realpath ~/miniforge3/bin)
-      echo "##vso[task.prependpath]$CONDA"
-    displayName: Install conda
+      - script: conda create --yes --quiet --name nthash
+        displayName: "Create conda environment"
 
-  - script: conda create --yes --quiet --name nthash
-    displayName: Create Anaconda environment
+      - script: |
+          source activate nthash
+          conda install --yes -c conda-forge mamba
+          mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja openmp
+        displayName: "Install dependencies"
 
-  - script: |
-      source activate nthash
-      conda install --yes -c conda-forge mamba
-      mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja openmp
-    displayName: Install dependencies
-  
-  - script: |
-      source activate nthash
-      meson setup build && cd build && ninja
-    displayName: 'Build the project'
+      - script: |
+          source activate nthash
+          meson setup build && cd build && ninja
+        displayName: "Build the project"
 
-  - script: |
-      source activate nthash
-      set -o errexit -o pipefail
-      cd examples
-      g++ kmer_hashing.cpp -std=c++17 -I../include -L../build -lnthash && ./a.out
-    displayName: 'Compile example'
+      - script: |
+          source activate nthash
+          set -o errexit -o pipefail
+          cd build && ninja formatted_header && cd ..
+          diff -u include/nthash.hpp build/nthash.hpp || {
+            echo "##[error] The single-header include/nthash.hpp is out of date!"
+            echo "Please run the amalgamation script and commit the updated header."
+            exit 1
+          }
+        displayName: "Check if single header is up-to-date"
 
-  - script: |
-      source activate nthash
-      cd build && ninja clang-format-check
-    displayName: 'Check code format'
+      - script: |
+          source activate nthash
+          set -o errexit -o pipefail
+          cd examples
+          g++ kmers.cpp -std=c++17 -I../include && ./a.out
+        displayName: "Compile example"
 
-  - script: |
-      source activate nthash
-      cd build && ninja clang-tidy
-    displayName: 'Run clang-tidy'
+      - script: |
+          source activate nthash
+          cd build && ninja clang-format-check
+        displayName: "Check code format"
 
-  - script: |
-      source activate nthash
-      cd build && meson test --print-errorlogs
-    displayName: 'Run tests'
+      - script: |
+          source activate nthash
+          cd build && ninja clang-tidy
+        displayName: "Run clang-tidy"
 
-- job: macos
-  pool:
-    vmImage: 'macOS-latest'
+      - script: |
+          source activate nthash
+          cd build && meson test --print-errorlogs
+        displayName: "Run tests"
 
-  steps:
-  - checkout: self
-    persistCredentials: true
+  - job: macos
+    pool:
+      vmImage: "macOS-latest"
 
-  - script: |
-      mkdir -p ~/miniforge3
-      curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-x86_64.sh  -o ~/miniforge3/miniforge.sh
-      bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
-      rm -rf  ~/miniforge3/miniforge.sh
-      ~/miniforge3/bin/conda init bash
-      ~/miniforge3/bin/conda init zsh
-      export CONDA=$(realpath ~/miniforge3/bin)
-      echo "##vso[task.prependpath]$CONDA"
-    displayName: Install conda
+    steps:
+      - checkout: self
+        persistCredentials: "true"
 
-  - script: conda create --yes --quiet --name nthash
-    displayName: Create Anaconda environment
+      - script: |
+          mkdir -p ~/miniforge3
+          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh -o ~/miniforge3/miniforge.sh          bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
+          rm -rf  ~/miniforge3/miniforge.sh
+          ~/miniforge3/bin/conda init bash
+          ~/miniforge3/bin/conda init zsh
+          export CONDA=$(realpath ~/miniforge3/bin)
+          echo "##vso[task.prependpath]$CONDA"
+        displayName: Install conda
 
-  - script: |
-      source activate nthash
-      conda install --yes -c conda-forge mamba
-      mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja openmp
-    displayName: Install dependencies
-  
-  - script: |
-      source activate nthash
-      meson setup build && cd build && ninja
-    displayName: 'Build the project'
+      - script: conda create --yes --quiet --name nthash
+        displayName: Create Anaconda environment
 
-  - script: |
-      source activate nthash
-      set -o errexit -o pipefail
-      cd examples
-      g++ kmer_hashing.cpp -std=c++17 -I../include -L../build -lnthash && ./a.out
-    displayName: 'Compile example'
+      - script: |
+          source activate nthash
+          conda install --yes -c conda-forge mamba
+          mamba install --yes -c conda-forge compilers clang llvm clang-format clang-tools meson ninja openmp
+        displayName: "Install dependencies"
 
-  - script: |
-      source activate nthash
-      cd build && ninja clang-format-check
-    displayName: 'Check code format'
+      - script: |
+          source activate nthash
+          meson setup build && cd build && ninja
+        displayName: "Build the project"
 
-  - script: |
-      source activate nthash
-      cd build && ninja clang-tidy
-    displayName: 'Run clang-tidy'
+      - script: |
+          source activate nthash
+          set -o errexit -o pipefail
+          cd build && ninja formatted_header && cd ..
+          diff -u include/nthash.hpp build/nthash.hpp || {
+            echo "##[error] The single-header include/nthash.hpp is out of date!"
+            echo "Please run the amalgamation script and commit the updated header."
+            exit 1
+          }
+        displayName: "Check if single header is up-to-date"
 
-  - script: |
-      source activate nthash
-      cd build && meson test --print-errorlogs
-    displayName: 'Run tests'
+      - script: |
+          source activate nthash
+          set -o errexit -o pipefail
+          cd examples
+          g++ kmers.cpp -std=c++17 -I../include && ./a.out
+        displayName: "Compile example"
+
+      - script: |
+          source activate nthash
+          cd build && ninja clang-format-check
+        displayName: "Check code format"
+
+      - script: |
+          source activate nthash
+          cd build && ninja clang-tidy
+        displayName: "Run clang-tidy"
+
+      - script: |
+          source activate nthash
+          cd build && meson test --print-errorlogs
+        displayName: "Run tests"
