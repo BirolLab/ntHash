@@ -8,7 +8,7 @@ ntHash is an efficient rolling hash function for k-mers and spaced seeds.
 
 # Installation
 
-You can simply download `nthash.hpp` and drop it directly into your project's include path. No compiling or linking is required.
+You can simply download `include/nthash.hpp` and drop it directly into your project's include path.
 
 If you prefer to install it system-wide using [Meson](https://mesonbuild.com/), run the following in the project root:
 
