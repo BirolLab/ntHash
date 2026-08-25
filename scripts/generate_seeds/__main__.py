@@ -1,4 +1,6 @@
+import functools
 import itertools
+import operator
 import os
 import random
 import typing
@@ -6,12 +8,15 @@ import typing
 import pynthash
 
 
-def generate(num_seeds: int) -> tuple[list[int], list[int]]:
-    """Generates random 64-bit seeds and their relative basis vectors."""
-    # Generate num_seeds random 64-bit unsigned integers
-    seeds = [random.getrandbits(64) for _ in range(num_seeds)]
-    # Basis vectors are the differences (XOR) relative to the first seed
-    basis_vectors = [seeds[0] ^ seeds[i] for i in range(1, num_seeds)]
+def generate(num_chars: int = 4) -> tuple[list[int], list[int]]:
+    """Generate basis vectors for an alphabet size of `num_chars`."""
+    num_basis = (num_chars - 1).bit_length()
+    basis_vectors = [random.getrandbits(64) for _ in range(num_basis)]
+    base_seed = random.getrandbits(64)
+    seeds = []
+    for i in range(num_chars):
+        selection = (v for j, v in enumerate(basis_vectors) if (i >> j) & 1)
+        seeds.append(functools.reduce(operator.xor, selection, base_seed))
     return seeds, basis_vectors
 
 
