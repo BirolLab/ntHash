@@ -44,7 +44,7 @@ public:
                                   std::to_string(seq_len) + " < " +
                                   std::to_string(k) + ")");
     }
-    if (this->k >= 64) {
+    if (this->k >= 64) { // NOLINT
       throw std::invalid_argument("LegacyNtHash: k = " + std::to_string(k) +
                                   " >= 64 is not supported");
     }

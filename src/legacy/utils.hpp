@@ -17,17 +17,17 @@ template<K_TYPE k>
 [[nodiscard]] constexpr auto
 generate_kmer_table() noexcept
 {
-  constexpr char bases[4] = { 'A', 'C', 'G', 'T' };
-  constexpr std::size_t table_size = 1 << (k * 2);
-  std::array<HASH_TYPE, table_size> table{};
-  for (std::size_t i = 0; i < table_size; ++i) {
+  constexpr char BASES[4] = { 'A', 'C', 'G', 'T' };
+  constexpr std::size_t TABLE_SIZE = 1 << (k * 2);
+  std::array<HASH_TYPE, TABLE_SIZE> table{};
+  for (std::size_t i = 0; i < TABLE_SIZE; ++i) {
     HASH_TYPE hash = 0;
     for (std::size_t pos = 0; pos < k; ++pos) {
-      std::size_t shift = (k - 1 - pos) * 2;
-      uint8_t b = (i >> shift) & 3;
-      int d = k - 1 - pos;
+      const std::size_t shift = (k - 1 - pos) * 2;
+      const uint8_t b = (i >> shift) & 3;
+      const int d = k - 1 - pos;
       hash ^= internal::rotl(
-        internal::SEED_TAB[static_cast<unsigned char>(bases[b])], d);
+        internal::SEED_TAB[static_cast<unsigned char>(BASES[b])], d);
     }
     table[i] = hash;
   }
@@ -50,22 +50,22 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
   HASH_TYPE hash = 0;
   std::size_t i = 0;
   for (; i + 4 <= k; i += 4) {
-    uint8_t idx =
+    const uint8_t index =
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 4) |
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 2) |
       internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 3])];
-    hash = internal::rotl(hash, 4) ^ TETRAMER_TAB[idx];
+    hash = internal::rotl(hash, 4) ^ TETRAMER_TAB[index];
   }
-  std::size_t rem = k - i;
+  const auto rem = k - i;
   if (rem == 3) {
-    uint8_t idx =
+    const uint8_t index =
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 4) |
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
       internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])];
-    hash = internal::rotl(hash, 3) ^ TRIMER_TAB[idx];
+    hash = internal::rotl(hash, 3) ^ TRIMER_TAB[index];
   } else if (rem == 2) {
-    uint8_t idx =
+    const uint8_t idx =
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 2) |
       internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
     hash = internal::rotl(hash, 2) ^ DIMER_TAB[idx];
@@ -87,33 +87,34 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
 base_reverse_hash(const char* seq, K_TYPE k) noexcept
 {
   HASH_TYPE hash = 0;
-  std::size_t i = 0;
+  const auto remainder = k % 4;
   int shift = 0;
-  for (; i + 4 <= k; i += 4) {
-    uint8_t idx =
-      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 3])] << 6) |
-      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 4) |
-      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
-      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])];
-    hash ^= internal::rotl(TETRAMER_TAB[(~idx) & 0xFF], shift);
-    shift += 4;
+  if (remainder == 3) {
+    const uint8_t idx =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 4) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 3])];
+    hash ^= internal::rotl(TRIMER_TAB[idx], shift);
+    shift += 3;
+  } else if (remainder == 2) {
+    const uint8_t idx =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])];
+    hash ^= internal::rotl(DIMER_TAB[idx], shift);
+    shift += 2;
+  } else if (remainder == 1) {
+    const auto b0 = static_cast<unsigned char>(seq[k - 1]);
+    hash ^= internal::rotl(internal::SEED_TAB[b0 & internal::CP_OFF], shift);
+    shift += 1;
   }
-  std::size_t rem = k - i;
-  if (rem == 3) {
-    uint8_t idx =
-      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 4) |
-      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
-      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])];
-    hash ^= internal::rotl(TRIMER_TAB[(~idx) & 0x3F], shift);
-  } else if (rem == 2) {
-    uint8_t idx =
-      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
-      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])];
-    hash ^= internal::rotl(DIMER_TAB[(~idx) & 0x0F], shift);
-  } else if (rem == 1) {
-    hash ^= internal::rotl(
-      internal::SEED_TAB[static_cast<unsigned char>(seq[i]) & internal::CP_OFF],
-      shift);
+  for (int i = static_cast<int>(k - remainder) - 1; i >= 3; i -= 4) {
+    const uint8_t index =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 1])] << 4) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 2])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 3])];
+    hash ^= internal::rotl(TETRAMER_TAB[index], shift);
+    shift += 4;
   }
   return hash;
 }
