@@ -493,5 +493,21 @@ main()
     TEST_ASSERT_EQ(rank, 64)
   }
 
+  {
+    PRINT_TEST_NAME("legacy seed matrix rank for collisions")
+    uint64_t xor_result = nthash::internal::SEED_C ^ nthash::internal::SEED_G ^
+                          nthash::internal::SEED_T;
+    TEST_ASSERT_EQ(nthash::internal::SEED_A, xor_result)
+    std::vector<uint64_t> matrix(64, 0);
+    uint64_t u = nthash::internal::SEED_A ^ nthash::internal::SEED_C;
+    uint64_t v = nthash::internal::SEED_A ^ nthash::internal::SEED_G;
+    for (int i = 0; i < 32; ++i) {
+      matrix[i] = nthash::internal::rotl(u, i);
+      matrix[i + 32] = nthash::internal::rotl(v, i);
+    }
+    int rank = calculate_rank(matrix);
+    TEST_ASSERT_EQ(rank, 64)
+  }
+
   return 0;
 }
