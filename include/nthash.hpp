@@ -22,10 +22,10 @@ namespace nthash::internal {
 
 // 64-bit random seeds corresponding to bases and their complements
 // from the generate_seeds script with rng=42
-constexpr uint64_t SEED_A = 0x3eb13b9046685257;
-constexpr uint64_t SEED_C = 0x22310aefe5d92bca;
-constexpr uint64_t SEED_G = 0x83677b6b400f4886;
-constexpr uint64_t SEED_T = 0x9fe74a14e3be311b;
+constexpr uint64_t SEED_A = 0xbd9c66b3ad3c2d6d;
+constexpr uint64_t SEED_C = 0x9e24a75a94187bb3;
+constexpr uint64_t SEED_G = 0xa7a1791411b54dc4;
+constexpr uint64_t SEED_T = 0x8419b8fd28911b1a;
 constexpr uint64_t SEED_N = 0x0000000000000000;
 
 // offset for the complement base in the random seeds table
@@ -890,6 +890,483 @@ private:
 } // namespace nthash::kmer
 
 // --- END FILE: nthash.hpp ---
+// --- BEGIN FILE: utils.hpp ---
+
+namespace nthash::legacy {
+
+using internal::HASH_TYPE;
+using internal::K_TYPE;
+
+template<K_TYPE k>
+[[nodiscard]] constexpr auto
+generate_kmer_table() noexcept
+{
+  constexpr char bases[4] = { 'A', 'C', 'G', 'T' };
+  constexpr std::size_t table_size = 1 << (k * 2);
+  std::array<HASH_TYPE, table_size> table{};
+  for (std::size_t i = 0; i < table_size; ++i) {
+    HASH_TYPE hash = 0;
+    for (std::size_t pos = 0; pos < k; ++pos) {
+      std::size_t shift = (k - 1 - pos) * 2;
+      uint8_t b = (i >> shift) & 3;
+      int d = k - 1 - pos;
+      hash ^= internal::rotl(
+        internal::SEED_TAB[static_cast<unsigned char>(bases[b])], d);
+    }
+    table[i] = hash;
+  }
+  return table;
+}
+
+alignas(64) inline constexpr auto DIMER_TAB = generate_kmer_table<2>();
+alignas(64) inline constexpr auto TRIMER_TAB = generate_kmer_table<3>();
+alignas(64) inline constexpr auto TETRAMER_TAB = generate_kmer_table<4>();
+
+/**
+ * Generate the forward-strand hash value of the first k-mer in the sequence.
+ * @param seq C array containing the sequence's characters
+ * @param k k-mer size
+ * @return Hash value of k-mer_0
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+base_forward_hash(const char* seq, K_TYPE k) noexcept
+{
+  HASH_TYPE hash = 0;
+  std::size_t i = 0;
+  for (; i + 4 <= k; i += 4) {
+    uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 3])];
+    hash = internal::rotl(hash, 4) ^ TETRAMER_TAB[idx];
+  }
+  std::size_t rem = k - i;
+  if (rem == 3) {
+    uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])];
+    hash = internal::rotl(hash, 3) ^ TRIMER_TAB[idx];
+  } else if (rem == 2) {
+    uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
+    hash = internal::rotl(hash, 2) ^ DIMER_TAB[idx];
+  } else if (rem == 1) {
+    hash = internal::rotl(hash, 1) ^
+           internal::SEED_TAB[static_cast<unsigned char>(seq[i])];
+  }
+  return hash;
+}
+
+/**
+ * Generate a hash value for the reverse-complement of the first k-mer in the
+ * sequence.
+ * @param seq C array containing the sequence's characters
+ * @param k k-mer size
+ * @return Hash value of the reverse-complement of k-mer_0
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+base_reverse_hash(const char* seq, K_TYPE k) noexcept
+{
+  HASH_TYPE hash = 0;
+  std::size_t i = 0;
+  int shift = 0;
+  for (; i + 4 <= k; i += 4) {
+    uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 3])] << 6) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])];
+    hash ^= internal::rotl(TETRAMER_TAB[(~idx) & 0xFF], shift);
+    shift += 4;
+  }
+  std::size_t rem = k - i;
+  if (rem == 3) {
+    uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])];
+    hash ^= internal::rotl(TRIMER_TAB[(~idx) & 0x3F], shift);
+  } else if (rem == 2) {
+    uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])];
+    hash ^= internal::rotl(DIMER_TAB[(~idx) & 0x0F], shift);
+  } else if (rem == 1) {
+    hash ^= internal::rotl(
+      internal::SEED_TAB[static_cast<unsigned char>(seq[i]) & internal::CP_OFF],
+      shift);
+  }
+  return hash;
+}
+
+/**
+ * Perform a roll operation on the forward strand by removing char_out and
+ * including char_in.
+ * @param fh_val Previous forward hash value computed for the sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the sliding window
+ * @param char_in Character entering the sliding window
+ * @return Rolled forward hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+next_forward_hash(HASH_TYPE fh_val,
+                  K_TYPE k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto h_out = internal::rotl(internal::SEED_TAB[char_out], k);
+  return internal::rotl(fh_val, 1) ^ h_out ^ internal::SEED_TAB[char_in];
+}
+
+/**
+ * Perform a roll operation on the reverse-complement strand by removing
+ * char_out and including char_in from the forward sequence.
+ * @param rh_val Previous reverse-complement hash value computed for the
+ * sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the forward sliding window
+ * @param char_in Character entering the forward sliding window
+ * @return Rolled reverse-complement hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+next_reverse_hash(HASH_TYPE rh_val,
+                  K_TYPE k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
+  const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
+  return internal::rotr(rh_val ^ h_out, 1) ^ internal::rotl(h_in, k - 1);
+}
+
+/**
+ * Perform a backward roll operation on the forward strand by removing char_out
+ * and including char_in.
+ * @param fh_val Previous forward hash value computed for the sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the sliding window
+ * @param char_in Character entering the sliding window
+ * @return Rolled forward hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+prev_forward_hash(HASH_TYPE fh_val,
+                  K_TYPE k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto h_out = internal::SEED_TAB[char_out];
+  const auto h_in = internal::rotl(internal::SEED_TAB[char_in], k - 1);
+  return internal::rotr(fh_val ^ h_out, 1) ^ h_in;
+}
+
+/**
+ * Perform a backward roll operation on the reverse-complement strand by
+ * removing char_out and including char_in from the forward sequence.
+ * @param rh_val Previous reverse-complement hash value computed for the
+ * sequence
+ * @param k k-mer size
+ * @param char_out Character leaving the forward sliding window
+ * @param char_in Character entering the forward sliding window
+ * @return Rolled reverse-complement hash value
+ */
+[[nodiscard]] inline constexpr HASH_TYPE
+prev_reverse_hash(HASH_TYPE rh_val,
+                  K_TYPE k,
+                  unsigned char char_out,
+                  unsigned char char_in) noexcept
+{
+  const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
+  const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
+  return internal::rotl(rh_val ^ internal::rotl(h_out, k - 1), 1) ^ h_in;
+}
+
+} // namespace nthash::legacy
+
+// --- END FILE: utils.hpp ---
+// --- BEGIN FILE: legacy.hpp ---
+
+namespace nthash::legacy {
+
+using internal::HASH_TYPE;
+using internal::K_TYPE;
+
+class LegacyNtHash
+{
+
+public:
+  /**
+   * Uses the ntHash1 faster rotation scheme for k less than 64.
+   * @param seq C-string containing sequence data
+   * @param seq_len Length of the sequence
+   * @param num_hashes Number of hashes to generate per k-mer
+   * @param k K-mer size
+   * @param pos Position in the sequence to start hashing from
+   */
+  LegacyNtHash(const char* seq,
+               size_t seq_len,
+               unsigned num_hashes,
+               K_TYPE k,
+               size_t pos = 0)
+    : seq(seq, seq_len)
+    , k(k)
+    , pos(pos)
+    , initialized(false)
+    , hash_arr(num_hashes)
+    , k_mult(static_cast<HASH_TYPE>(k) * internal::MULTISEED)
+  {
+    if (k == 0) {
+      throw std::invalid_argument("LegacyNtHash: k must be greater than 0");
+    }
+    if (this->seq.size() < k) {
+      throw std::invalid_argument("LegacyNtHash: sequence is shorter than k (" +
+                                  std::to_string(seq_len) + " < " +
+                                  std::to_string(k) + ")");
+    }
+    if (this->k >= 64) {
+      throw std::invalid_argument("LegacyNtHash: k = " + std::to_string(k) +
+                                  " >= 64 is not supported");
+    }
+    if (pos > this->seq.size() - k) {
+      throw std::invalid_argument(
+        "LegacyNtHash: position is out of bounds (" + std::to_string(pos) +
+        " > " + std::to_string(seq_len) + " + " + std::to_string(k) + ")");
+    }
+  }
+
+  /**
+   * Construct an ntHash object for k-mers.
+   * @param seq Sequence string
+   * @param num_hashes Number of hashes to produce per k-mer
+   * @param k K-mer size
+   * @param pos Position in sequence to start hashing from
+   */
+  LegacyNtHash(std::string_view seq,
+               unsigned num_hashes,
+               K_TYPE k,
+               size_t pos = 0)
+    : LegacyNtHash(seq.data(), seq.size(), num_hashes, k, pos)
+  {
+  }
+
+  /**
+   * Calculate the hash values of current k-mer and advance to the next k-mer.
+   * NtHash advances one nucleotide at a time until it finds a k-mer with valid
+   * characters (ACGTU) and skips over those with invalid characters (non-ACGTU,
+   * including N). This method must be called before hashes() is accessed, for
+   * the first and every subsequent hashed kmer. get_pos() may be called at any
+   * time to obtain the position of last hashed k-mer or the k-mer to be hashed
+   * if roll() has never been called on this NtHash object. It is important to
+   * note that the number of roll() calls is NOT necessarily equal to get_pos(),
+   * if there are N's or invalid characters in the hashed sequence.
+   * @return \p true on success and \p false otherwise
+   */
+  bool roll()
+  {
+    if (!initialized) {
+      return init();
+    }
+    if (pos >= seq.size() - k) {
+      return false;
+    }
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
+    const auto char_in = static_cast<unsigned char>(seq[pos + k]);
+    if (internal::SEED_TAB[char_in] == internal::SEED_N) {
+      pos += k + 1;
+      return init();
+    }
+    fwd_hash = legacy::next_forward_hash(fwd_hash, k, char_out, char_in);
+    rev_hash = legacy::next_reverse_hash(rev_hash, k, char_out, char_in);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+    ++pos;
+    return true;
+  }
+
+  /**
+   * Like the roll() function, but advance backwards.
+   * @return \p true on success and \p false otherwise
+   */
+  bool roll_back()
+  {
+    if (!initialized) {
+      return init();
+    }
+    if (pos == 0) {
+      return false;
+    }
+    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
+    const auto char_in = static_cast<unsigned char>(seq[pos - 1]);
+    if (internal::SEED_TAB[char_in] == internal::SEED_N) {
+      if (pos >= k) {
+        pos -= k;
+        return init();
+      }
+      return false;
+    }
+    fwd_hash = legacy::prev_forward_hash(fwd_hash, k, char_out, char_in);
+    rev_hash = legacy::prev_reverse_hash(rev_hash, k, char_out, char_in);
+    internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+    --pos;
+    return true;
+  }
+
+  /**
+   * Peeks the hash values as if roll() was called (without advancing the
+   * NtHash object. The peeked hash values can be obtained through the
+   * hashes() method.
+   * @return \p true on success and \p false otherwise
+   */
+  bool peek()
+  {
+    if (pos >= seq.size() - k) {
+      return false;
+    }
+    return peek(seq[pos + k]);
+  }
+
+  /**
+   * Like peek(), but as if roll_back() was called.
+   * @return \p true on success and \p false otherwise
+   */
+  bool peek_back()
+  {
+    if (pos == 0) {
+      return false;
+    }
+    return peek_back(seq[pos - 1]);
+  }
+
+  /**
+   * Peeks the hash values as if roll() was called for char_in (without
+   * advancing the NtHash object. The peeked hash values can be obtained through
+   * the hashes() method.
+   * @return \p true on success and \p false otherwise
+   */
+  bool peek(char char_in)
+  {
+    if (!initialized && !init()) {
+      return false;
+    }
+    const auto char_out = static_cast<unsigned char>(seq[pos]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    if (internal::SEED_TAB[uchar_in] == internal::SEED_N) {
+      return false;
+    }
+    internal::extend_hashes(
+      legacy::next_forward_hash(fwd_hash, k, char_out, uchar_in),
+      legacy::next_reverse_hash(rev_hash, k, char_out, uchar_in),
+      k_mult,
+      hash_arr);
+    return true;
+  }
+
+  /**
+   * Like peek(), but as if roll_back on char_in was called.
+   * @return \p true on success and \p false otherwise
+   */
+  bool peek_back(char char_in)
+  {
+    if (!initialized && !init()) {
+      return false;
+    }
+    const auto char_out = static_cast<unsigned char>(seq[pos + k - 1]);
+    const auto uchar_in = static_cast<unsigned char>(char_in);
+    if (internal::SEED_TAB[uchar_in] == internal::SEED_N) {
+      return false;
+    }
+    internal::extend_hashes(
+      legacy::prev_forward_hash(fwd_hash, k, char_out, uchar_in),
+      legacy::prev_reverse_hash(rev_hash, k, char_out, uchar_in),
+      k_mult,
+      hash_arr);
+    return true;
+  }
+
+  /**
+   * Get the array of current canonical hash values (length = \p get_hash_num())
+   * @return Pointer to the hash array
+   */
+  [[nodiscard]] const HASH_TYPE* hashes() const noexcept
+  {
+    return hash_arr.data();
+  }
+
+  /**
+   * Get the position of last hashed k-mer or the k-mer to be hashed if roll()
+   * has never been called on this NtHash object.
+   * @return Position of the most recently hashed k-mer's first base-pair
+   */
+  [[nodiscard]] size_t get_pos() const noexcept { return pos; }
+
+  /**
+   * Get the number of hashes generated per k-mer.
+   * @return Number of hashes per k-mer
+   */
+  [[nodiscard]] unsigned get_hash_num() const noexcept
+  {
+    return hash_arr.size();
+  }
+
+  /**
+   * Get the length of the k-mers.
+   * @return \p k
+   */
+  [[nodiscard]] K_TYPE get_k() const noexcept { return k; }
+
+  /**
+   * Get the hash value of the forward strand.
+   * @return Forward hash value
+   */
+  [[nodiscard]] HASH_TYPE get_forward_hash() const noexcept { return fwd_hash; }
+
+  /**
+   * Get the hash value of the reverse strand.
+   * @return Reverse-complement hash value
+   */
+  [[nodiscard]] HASH_TYPE get_reverse_hash() const noexcept { return rev_hash; }
+
+private:
+  std::string_view seq;
+  K_TYPE k;
+  size_t pos;
+  bool initialized;
+  HASH_TYPE fwd_hash = 0;
+  HASH_TYPE rev_hash = 0;
+  std::vector<HASH_TYPE> hash_arr;
+  HASH_TYPE k_mult;
+
+  /**
+   * Initialize the internal state of the iterator
+   * @return \p true if successful, \p false otherwise
+   */
+  bool init()
+  {
+    while (pos <= seq.size() - k) {
+      bool valid = true;
+      for (size_t i = k; i > 0 && valid; --i) {
+        const auto c = static_cast<unsigned char>(seq[pos + i - 1]);
+        if (internal::SEED_TAB[c] == internal::SEED_N) {
+          pos += i;
+          valid = false;
+        }
+      }
+      if (valid) {
+        fwd_hash = legacy::base_forward_hash(seq.data() + pos, k);
+        rev_hash = legacy::base_reverse_hash(seq.data() + pos, k);
+        internal::extend_hashes(fwd_hash, rev_hash, k_mult, hash_arr);
+        initialized = true;
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+} // namespace nthash::legacy
+
+// --- END FILE: legacy.hpp ---
 // --- BEGIN FILE: utils.hpp ---
 
 namespace nthash::seed {
@@ -1899,6 +2376,7 @@ static_assert(std::numeric_limits<uint64_t>::max() + 1 == 0,
 // Expose core classes
 using kmer::BlindNtHash;
 using kmer::NtHash;
+using legacy::LegacyNtHash;
 using seed::BlindSeedNtHash;
 using seed::SeedNtHash;
 
