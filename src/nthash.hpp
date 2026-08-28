@@ -6,6 +6,7 @@
 
 #include "kmer/blind.hpp"
 #include "kmer/nthash.hpp"
+#include "legacy/legacy.hpp"
 #include "seed/blind.hpp"
 #include "seed/seed.hpp"
 
@@ -25,6 +26,7 @@ static_assert(std::numeric_limits<uint64_t>::max() + 1 == 0,
 // Expose core classes
 using kmer::BlindNtHash;
 using kmer::NtHash;
+using legacy::LegacyNtHash;
 using seed::BlindSeedNtHash;
 using seed::SeedNtHash;
 

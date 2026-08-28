@@ -21,6 +21,8 @@ nthash_headers = files(
   'src/kmer/blind.hpp',
   'src/kmer/nthash.hpp',
   'src/kmer/utils.hpp',
+  'src/legacy/legacy.hpp',
+  'src/legacy/utils.hpp',
   'src/seed/blind.hpp',
   'src/seed/seed.hpp',
   'src/seed/utils.hpp',
