@@ -63,11 +63,11 @@ def generate_optimized_seeds(num_seeds: int, rng_seed: int) -> list[int]:
     random.seed(rng_seed)
     d = (num_seeds - 1).bit_length()
     expected_rank = d * (64 // d)
-    seeds, rank = [], 0
-    while rank < expected_rank:
+    seeds, rank, rotl_rank = [], 0, 0
+    while rank < expected_rank or rotl_rank < expected_rank:
         seeds, basis_vectors = generate(num_seeds)
-        matrix = build_matrix(basis_vectors, pynthash.roll)
-        rank = get_rank(matrix)
+        rank = get_rank(build_matrix(basis_vectors, pynthash.roll_next))
+        rotl_rank = get_rank(build_matrix(basis_vectors, pynthash.rotl))
     return seeds
 
 
