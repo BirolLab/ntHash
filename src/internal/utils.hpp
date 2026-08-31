@@ -41,9 +41,21 @@ rotl(HASH_TYPE x, unsigned int r) noexcept
 }
 
 [[nodiscard]] inline constexpr HASH_TYPE
+rotl(HASH_TYPE x) noexcept
+{
+  return (x << 1) | (x >> (HASH_BITS - 1));
+}
+
+[[nodiscard]] inline constexpr HASH_TYPE
 rotr(HASH_TYPE x, unsigned int r) noexcept
 {
   return (x >> (r & (HASH_BITS - 1))) | (x << ((-r) & (HASH_BITS - 1)));
+}
+
+[[nodiscard]] inline constexpr HASH_TYPE
+rotr(HASH_TYPE x) noexcept
+{
+  return (x >> 1) | (x << (HASH_BITS - 1));
 }
 
 /**

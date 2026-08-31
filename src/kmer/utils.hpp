@@ -47,6 +47,13 @@ generate_rollk_table(K_TYPE k) noexcept
   return table;
 }
 
+alignas(64) inline constexpr auto DIMER_TAB =
+  internal::generate_kmer_table<2, internal::roll_next>();
+alignas(64) inline constexpr auto TRIMER_TAB =
+  internal::generate_kmer_table<3, internal::roll_next>();
+alignas(64) inline constexpr auto TETRAMER_TAB =
+  internal::generate_kmer_table<4, internal::roll_next>();
+
 /**
  * Generate the forward-strand hash value of the first k-mer in the sequence.
  * @param seq C array containing the sequence's characters
@@ -56,12 +63,33 @@ generate_rollk_table(K_TYPE k) noexcept
 [[nodiscard]] inline constexpr HASH_TYPE
 base_forward_hash(const char* seq, K_TYPE k) noexcept
 {
-  HASH_TYPE h_val = 0;
-  for (K_TYPE i = 0; i < k; i++) {
-    const auto index = static_cast<unsigned char>(seq[i]);
-    h_val = internal::roll_next(h_val) ^ internal::SEED_TAB[index];
+  HASH_TYPE hash = 0;
+  size_t i = 0;
+  for (; i + 4 <= k; i += 4) {
+    const uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 3])];
+    hash = internal::roll_next(hash, 4) ^ TETRAMER_TAB[idx];
   }
-  return h_val;
+  const std::size_t rem = k - i;
+  if (rem == 3) {
+    const uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])];
+    hash = internal::roll_next(hash, rem) ^ TRIMER_TAB[idx];
+  } else if (rem == 2) {
+    const uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
+    hash = internal::roll_next(hash, rem) ^ DIMER_TAB[idx];
+  } else if (rem == 1) {
+    const uint8_t idx = static_cast<unsigned char>(seq[i]);
+    hash = internal::roll_next(hash) ^ internal::SEED_TAB[idx];
+  }
+  return hash;
 }
 
 /**
@@ -74,13 +102,32 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
 [[nodiscard]] inline constexpr HASH_TYPE
 base_reverse_hash(const char* seq, K_TYPE k) noexcept
 {
-  HASH_TYPE h_val = 0;
-  for (K_TYPE i = 0; i < k; i++) {
-    const auto index =
-      static_cast<unsigned char>(seq[k - 1 - i]) & internal::CP_OFF;
-    h_val = nthash::internal::roll_next(h_val) ^ internal::SEED_TAB[index];
+  HASH_TYPE hash = 0;
+  const size_t remainder = k % 4;
+  if (remainder == 3) {
+    const uint8_t idx =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 4) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 3])];
+    hash = TRIMER_TAB[idx];
+  } else if (remainder == 2) {
+    const uint8_t idx =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])];
+    hash = DIMER_TAB[idx];
+  } else if (remainder == 1) {
+    const auto b0 = static_cast<unsigned char>(seq[k - 1]);
+    hash = internal::SEED_TAB[b0 & internal::CP_OFF];
   }
-  return h_val;
+  for (int i = static_cast<int>(k - remainder) - 1; i >= 3; i -= 4) {
+    const uint8_t index =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 1])] << 4) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 2])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 3])];
+    hash = internal::roll_next(hash, 4) ^ TETRAMER_TAB[index];
+  }
+  return hash;
 }
 
 /**

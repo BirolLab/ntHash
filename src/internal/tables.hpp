@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "utils.hpp"
+
 namespace nthash::internal {
 
 // 64-bit random seeds corresponding to bases and their complements
@@ -65,5 +67,26 @@ generate_rc_convert_table() noexcept
 alignas(64) inline constexpr auto SEED_TAB = generate_seed_table();
 alignas(64) inline constexpr auto CONVERT_TAB = generate_convert_table();
 alignas(64) inline constexpr auto RC_CONVERT_TAB = generate_rc_convert_table();
+
+using RollFunction = HASH_TYPE (*)(HASH_TYPE) noexcept;
+
+template<K_TYPE k, RollFunction roll_fn>
+[[nodiscard]] constexpr auto
+generate_kmer_table() noexcept
+{
+  constexpr char BASES[4] = { 'A', 'C', 'G', 'T' };
+  constexpr std::size_t TABLE_SIZE = 1 << (k * 2);
+  std::array<HASH_TYPE, TABLE_SIZE> table{};
+  for (std::size_t i = 0; i < TABLE_SIZE; ++i) {
+    HASH_TYPE hash = 0;
+    for (std::size_t pos = 0; pos < k; ++pos) {
+      const std::size_t shift = (k - 1 - pos) * 2;
+      const uint8_t b = (i >> shift) & 3;
+      hash = roll_fn(hash) ^ SEED_TAB[static_cast<unsigned char>(BASES[b])];
+    }
+    table[i] = hash;
+  }
+  return table;
+}
 
 } // namespace nthash::internal

@@ -13,30 +13,12 @@ namespace nthash::legacy {
 using internal::HASH_TYPE;
 using internal::K_TYPE;
 
-template<K_TYPE k>
-[[nodiscard]] constexpr auto
-generate_kmer_table() noexcept
-{
-  constexpr char BASES[4] = { 'A', 'C', 'G', 'T' };
-  constexpr std::size_t TABLE_SIZE = 1 << (k * 2);
-  std::array<HASH_TYPE, TABLE_SIZE> table{};
-  for (std::size_t i = 0; i < TABLE_SIZE; ++i) {
-    HASH_TYPE hash = 0;
-    for (std::size_t pos = 0; pos < k; ++pos) {
-      const std::size_t shift = (k - 1 - pos) * 2;
-      const uint8_t b = (i >> shift) & 3;
-      const int d = k - 1 - pos;
-      hash ^= internal::rotl(
-        internal::SEED_TAB[static_cast<unsigned char>(BASES[b])], d);
-    }
-    table[i] = hash;
-  }
-  return table;
-}
-
-alignas(64) inline constexpr auto DIMER_TAB = generate_kmer_table<2>();
-alignas(64) inline constexpr auto TRIMER_TAB = generate_kmer_table<3>();
-alignas(64) inline constexpr auto TETRAMER_TAB = generate_kmer_table<4>();
+alignas(64) inline constexpr auto DIMER_TAB =
+  internal::generate_kmer_table<2, internal::rotl>();
+alignas(64) inline constexpr auto TRIMER_TAB =
+  internal::generate_kmer_table<3, internal::rotl>();
+alignas(64) inline constexpr auto TETRAMER_TAB =
+  internal::generate_kmer_table<4, internal::rotl>();
 
 /**
  * Generate the forward-strand hash value of the first k-mer in the sequence.
@@ -70,7 +52,7 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
       internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
     hash = internal::rotl(hash, 2) ^ DIMER_TAB[idx];
   } else if (rem == 1) {
-    hash = internal::rotl(hash, 1) ^
+    hash = internal::rotl(hash) ^
            internal::SEED_TAB[static_cast<unsigned char>(seq[i])];
   }
   return hash;
@@ -88,24 +70,21 @@ base_reverse_hash(const char* seq, K_TYPE k) noexcept
 {
   HASH_TYPE hash = 0;
   const auto remainder = k % 4;
-  int shift = 0;
+
   if (remainder == 3) {
     const uint8_t idx =
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 4) |
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])] << 2) |
       internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 3])];
-    hash ^= internal::rotl(TRIMER_TAB[idx], shift);
-    shift += 3;
+    hash = TRIMER_TAB[idx];
   } else if (remainder == 2) {
     const uint8_t idx =
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 2) |
       internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])];
-    hash ^= internal::rotl(DIMER_TAB[idx], shift);
-    shift += 2;
+    hash = DIMER_TAB[idx];
   } else if (remainder == 1) {
     const auto b0 = static_cast<unsigned char>(seq[k - 1]);
-    hash ^= internal::rotl(internal::SEED_TAB[b0 & internal::CP_OFF], shift);
-    shift += 1;
+    hash = internal::SEED_TAB[b0 & internal::CP_OFF];
   }
   for (int i = static_cast<int>(k - remainder) - 1; i >= 3; i -= 4) {
     const uint8_t index =
@@ -113,8 +92,7 @@ base_reverse_hash(const char* seq, K_TYPE k) noexcept
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 1])] << 4) |
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 2])] << 2) |
       internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 3])];
-    hash ^= internal::rotl(TETRAMER_TAB[index], shift);
-    shift += 4;
+    hash = internal::rotl(hash, 4) ^ TETRAMER_TAB[index];
   }
   return hash;
 }
@@ -135,7 +113,7 @@ next_forward_hash(HASH_TYPE fh_val,
                   unsigned char char_in) noexcept
 {
   const auto h_out = internal::rotl(internal::SEED_TAB[char_out], k);
-  return internal::rotl(fh_val, 1) ^ h_out ^ internal::SEED_TAB[char_in];
+  return internal::rotl(fh_val) ^ h_out ^ internal::SEED_TAB[char_in];
 }
 
 /**
@@ -156,7 +134,7 @@ next_reverse_hash(HASH_TYPE rh_val,
 {
   const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
   const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return internal::rotr(rh_val ^ h_out, 1) ^ internal::rotl(h_in, k - 1);
+  return internal::rotr(rh_val ^ h_out) ^ internal::rotl(h_in, k - 1);
 }
 
 /**
@@ -176,7 +154,7 @@ prev_forward_hash(HASH_TYPE fh_val,
 {
   const auto h_out = internal::SEED_TAB[char_out];
   const auto h_in = internal::rotl(internal::SEED_TAB[char_in], k - 1);
-  return internal::rotr(fh_val ^ h_out, 1) ^ h_in;
+  return internal::rotr(fh_val ^ h_out) ^ h_in;
 }
 
 /**
@@ -197,7 +175,7 @@ prev_reverse_hash(HASH_TYPE rh_val,
 {
   const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
   const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return internal::rotl(rh_val ^ internal::rotl(h_out, k - 1), 1) ^ h_in;
+  return internal::rotl(rh_val ^ internal::rotl(h_out, k - 1)) ^ h_in;
 }
 
 } // namespace nthash::legacy
