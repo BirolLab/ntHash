@@ -13,12 +13,51 @@ namespace nthash::legacy {
 using internal::HASH_TYPE;
 using internal::K_TYPE;
 
+constexpr HASH_TYPE MODULO_64 = 0x3F;
+
 alignas(64) inline constexpr auto DIMER_TAB =
   internal::generate_kmer_table<2, internal::rotl>();
 alignas(64) inline constexpr auto TRIMER_TAB =
   internal::generate_kmer_table<3, internal::rotl>();
 alignas(64) inline constexpr auto TETRAMER_TAB =
   internal::generate_kmer_table<4, internal::rotl>();
+
+[[nodiscard]] inline constexpr auto
+generate_rotl_table(char b) noexcept
+{
+  std::array<HASH_TYPE, 64> table{};
+  for (unsigned i = 0; i < 64; i++) {
+    table[i] = internal::rotl(internal::SEED_TAB[b], i);
+  }
+  return table;
+}
+
+alignas(64) inline constexpr auto VEC_A = generate_rotl_table('A');
+alignas(64) inline constexpr auto VEC_C = generate_rotl_table('C');
+alignas(64) inline constexpr auto VEC_G = generate_rotl_table('G');
+alignas(64) inline constexpr auto VEC_T = generate_rotl_table('T');
+alignas(64) inline constexpr auto VEC_N = generate_rotl_table('N');
+
+[[nodiscard]] inline constexpr auto
+generate_rotl_pointer_table() noexcept
+{
+  std::array<const std::array<HASH_TYPE, 64>*, 256> table{};
+  for (int i = 0; i < 256; ++i) {
+    table[i] = &VEC_N;
+  }
+  table['A'] = table['a'] = &VEC_A;
+  table['C'] = table['c'] = &VEC_C;
+  table['G'] = table['g'] = &VEC_G;
+  table['T'] = table['t'] = table['U'] = table['u'] = &VEC_T;
+  table['A' & internal::CP_OFF] = &VEC_T;
+  table['C' & internal::CP_OFF] = &VEC_G;
+  table['G' & internal::CP_OFF] = &VEC_C;
+  table['T' & internal::CP_OFF] = &VEC_A;
+  table['U' & internal::CP_OFF] = &VEC_A;
+  return table;
+}
+
+alignas(64) inline constexpr auto MS_TAB = generate_rotl_pointer_table();
 
 /**
  * Generate the forward-strand hash value of the first k-mer in the sequence.
@@ -112,7 +151,7 @@ next_forward_hash(HASH_TYPE fh_val,
                   unsigned char char_out,
                   unsigned char char_in) noexcept
 {
-  const auto h_out = internal::rotl(internal::SEED_TAB[char_out], k);
+  const auto h_out = (*MS_TAB[char_out])[k & MODULO_64];
   return internal::rotl(fh_val) ^ h_out ^ internal::SEED_TAB[char_in];
 }
 
@@ -133,8 +172,8 @@ next_reverse_hash(HASH_TYPE rh_val,
                   unsigned char char_in) noexcept
 {
   const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
-  const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return internal::rotr(rh_val ^ h_out) ^ internal::rotl(h_in, k - 1);
+  const auto h_in = (*MS_TAB[char_in & internal::CP_OFF])[k & MODULO_64];
+  return internal::rotr(rh_val ^ h_out ^ h_in);
 }
 
 /**
@@ -153,8 +192,8 @@ prev_forward_hash(HASH_TYPE fh_val,
                   unsigned char char_in) noexcept
 {
   const auto h_out = internal::SEED_TAB[char_out];
-  const auto h_in = internal::rotl(internal::SEED_TAB[char_in], k - 1);
-  return internal::rotr(fh_val ^ h_out) ^ h_in;
+  const auto h_in = (*MS_TAB[char_in])[k & MODULO_64];
+  return internal::rotr(fh_val ^ h_out ^ h_in);
 }
 
 /**
@@ -173,9 +212,9 @@ prev_reverse_hash(HASH_TYPE rh_val,
                   unsigned char char_out,
                   unsigned char char_in) noexcept
 {
-  const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
   const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return internal::rotl(rh_val ^ internal::rotl(h_out, k - 1)) ^ h_in;
+  const auto h_out = (*MS_TAB[char_out & internal::CP_OFF])[k & MODULO_64];
+  return internal::rotl(rh_val) ^ h_out ^ h_in;
 }
 
 } // namespace nthash::legacy
