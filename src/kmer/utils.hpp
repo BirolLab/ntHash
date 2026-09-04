@@ -86,7 +86,7 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
       internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
     hash = internal::roll_next(hash, rem) ^ DIMER_TAB[idx];
   } else if (rem == 1) {
-    const uint8_t idx = static_cast<unsigned char>(seq[i]);
+    const auto idx = static_cast<unsigned char>(seq[i]);
     hash = internal::roll_next(hash) ^ internal::SEED_TAB[idx];
   }
   return hash;

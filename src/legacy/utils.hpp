@@ -10,6 +10,8 @@
 
 namespace nthash::legacy {
 
+using internal::ASCII_SIZE;
+using internal::HASH_BITS;
 using internal::HASH_TYPE;
 using internal::K_TYPE;
 
@@ -25,8 +27,8 @@ alignas(64) inline constexpr auto TETRAMER_TAB =
 [[nodiscard]] inline constexpr auto
 generate_rotl_table(char b) noexcept
 {
-  std::array<HASH_TYPE, 64> table{};
-  for (unsigned i = 0; i < 64; i++) {
+  std::array<HASH_TYPE, HASH_BITS> table{};
+  for (unsigned i = 0; i < HASH_BITS; i++) {
     table[i] = internal::rotl(internal::SEED_TAB[b], i);
   }
   return table;
@@ -41,8 +43,8 @@ alignas(64) inline constexpr auto VEC_N = generate_rotl_table('N');
 [[nodiscard]] inline constexpr auto
 generate_rotl_pointer_table() noexcept
 {
-  std::array<const std::array<HASH_TYPE, 64>*, 256> table{};
-  for (int i = 0; i < 256; ++i) {
+  std::array<const std::array<HASH_TYPE, HASH_BITS>*, ASCII_SIZE> table{};
+  for (unsigned i = 0; i < ASCII_SIZE; ++i) {
     table[i] = &VEC_N;
   }
   table['A'] = table['a'] = &VEC_A;
@@ -69,7 +71,7 @@ alignas(64) inline constexpr auto MS_TAB = generate_rotl_pointer_table();
 base_forward_hash(const char* seq, K_TYPE k) noexcept
 {
   HASH_TYPE hash = 0;
-  std::size_t i = 0;
+  size_t i = 0;
   for (; i + 4 <= k; i += 4) {
     const uint8_t index =
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
@@ -109,7 +111,6 @@ base_reverse_hash(const char* seq, K_TYPE k) noexcept
 {
   HASH_TYPE hash = 0;
   const auto remainder = k % 4;
-
   if (remainder == 3) {
     const uint8_t idx =
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 4) |

@@ -16,74 +16,6 @@
 #include <string_view>
 #include <vector>
 
-// --- BEGIN FILE: tables.hpp ---
-
-namespace nthash::internal {
-
-// 64-bit random seeds corresponding to bases and their complements
-// from the generate_seeds script with rng=42
-constexpr uint64_t SEED_A = 0xbd9c66b3ad3c2d6d;
-constexpr uint64_t SEED_C = 0x9e24a75a94187bb3;
-constexpr uint64_t SEED_G = 0xa7a1791411b54dc4;
-constexpr uint64_t SEED_T = 0x8419b8fd28911b1a;
-constexpr uint64_t SEED_N = 0x0000000000000000;
-
-// offset for the complement base in the random seeds table
-constexpr uint8_t CP_OFF = 0x07;
-
-constexpr int ASCII_SIZE = 256;
-
-[[nodiscard]] constexpr std::array<uint64_t, ASCII_SIZE>
-generate_seed_table() noexcept
-{
-  std::array<uint64_t, ASCII_SIZE> tab{};
-  tab['A'] = tab['a'] = SEED_A;
-  tab['C'] = tab['c'] = SEED_C;
-  tab['G'] = tab['g'] = SEED_G;
-  tab['T'] = tab['t'] = tab['U'] = tab['u'] = SEED_T;
-  tab['A' & CP_OFF] = SEED_T;
-  tab['C' & CP_OFF] = SEED_G;
-  tab['T' & CP_OFF] = SEED_A;
-  tab['U' & CP_OFF] = SEED_A;
-  tab['G' & CP_OFF] = SEED_C;
-  return tab;
-}
-
-[[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
-generate_convert_table() noexcept
-{
-  std::array<uint8_t, ASCII_SIZE> tab{};
-  for (auto& val : tab) {
-    val = ASCII_SIZE - 1;
-  }
-  tab['A'] = tab['a'] = 0;
-  tab['C'] = tab['c'] = 1;
-  tab['G'] = tab['g'] = 2;
-  tab['T'] = tab['t'] = tab['U'] = tab['u'] = 3;
-  return tab;
-}
-
-[[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
-generate_rc_convert_table() noexcept
-{
-  std::array<uint8_t, ASCII_SIZE> tab{};
-  for (auto& val : tab) {
-    val = ASCII_SIZE - 1;
-  }
-  tab['A'] = tab['a'] = 3;
-  tab['C'] = tab['c'] = 2;
-  tab['G'] = tab['g'] = 1;
-  tab['T'] = tab['t'] = tab['U'] = tab['u'] = 0;
-  return tab;
-}
-
-alignas(64) inline constexpr auto SEED_TAB = generate_seed_table();
-alignas(64) inline constexpr auto CONVERT_TAB = generate_convert_table();
-alignas(64) inline constexpr auto RC_CONVERT_TAB = generate_rc_convert_table();
-
-} // namespace nthash::internal
-
-// --- END FILE: tables.hpp ---
 // --- BEGIN FILE: utils.hpp ---
 
 namespace nthash::internal {
@@ -122,9 +54,21 @@ rotl(HASH_TYPE x, unsigned int r) noexcept
 }
 
 [[nodiscard]] inline constexpr HASH_TYPE
+rotl(HASH_TYPE x) noexcept
+{
+  return (x << 1) | (x >> (HASH_BITS - 1));
+}
+
+[[nodiscard]] inline constexpr HASH_TYPE
 rotr(HASH_TYPE x, unsigned int r) noexcept
 {
   return (x >> (r & (HASH_BITS - 1))) | (x << ((-r) & (HASH_BITS - 1)));
+}
+
+[[nodiscard]] inline constexpr HASH_TYPE
+rotr(HASH_TYPE x) noexcept
+{
+  return (x >> 1) | (x << (HASH_BITS - 1));
 }
 
 /**
@@ -205,6 +149,95 @@ extend_hashes(HASH_TYPE fwd_hash,
 } // namespace nthash::internal
 
 // --- END FILE: utils.hpp ---
+// --- BEGIN FILE: tables.hpp ---
+
+namespace nthash::internal {
+
+// 64-bit random seeds corresponding to bases and their complements
+// from the generate_seeds script with rng=42
+constexpr uint64_t SEED_A = 0xbd9c66b3ad3c2d6d;
+constexpr uint64_t SEED_C = 0x9e24a75a94187bb3;
+constexpr uint64_t SEED_G = 0xa7a1791411b54dc4;
+constexpr uint64_t SEED_T = 0x8419b8fd28911b1a;
+constexpr uint64_t SEED_N = 0x0000000000000000;
+
+// offset for the complement base in the random seeds table
+constexpr uint8_t CP_OFF = 0x07;
+
+constexpr int ASCII_SIZE = 256;
+
+[[nodiscard]] constexpr std::array<uint64_t, ASCII_SIZE>
+generate_seed_table() noexcept
+{
+  std::array<uint64_t, ASCII_SIZE> tab{};
+  tab['A'] = tab['a'] = SEED_A;
+  tab['C'] = tab['c'] = SEED_C;
+  tab['G'] = tab['g'] = SEED_G;
+  tab['T'] = tab['t'] = tab['U'] = tab['u'] = SEED_T;
+  tab['A' & CP_OFF] = SEED_T;
+  tab['C' & CP_OFF] = SEED_G;
+  tab['T' & CP_OFF] = SEED_A;
+  tab['U' & CP_OFF] = SEED_A;
+  tab['G' & CP_OFF] = SEED_C;
+  return tab;
+}
+
+[[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
+generate_convert_table() noexcept
+{
+  std::array<uint8_t, ASCII_SIZE> tab{};
+  for (auto& val : tab) {
+    val = ASCII_SIZE - 1;
+  }
+  tab['A'] = tab['a'] = 0;
+  tab['C'] = tab['c'] = 1;
+  tab['G'] = tab['g'] = 2;
+  tab['T'] = tab['t'] = tab['U'] = tab['u'] = 3;
+  return tab;
+}
+
+[[nodiscard]] constexpr std::array<uint8_t, ASCII_SIZE>
+generate_rc_convert_table() noexcept
+{
+  std::array<uint8_t, ASCII_SIZE> tab{};
+  for (auto& val : tab) {
+    val = ASCII_SIZE - 1;
+  }
+  tab['A'] = tab['a'] = 3;
+  tab['C'] = tab['c'] = 2;
+  tab['G'] = tab['g'] = 1;
+  tab['T'] = tab['t'] = tab['U'] = tab['u'] = 0;
+  return tab;
+}
+
+alignas(64) inline constexpr auto SEED_TAB = generate_seed_table();
+alignas(64) inline constexpr auto CONVERT_TAB = generate_convert_table();
+alignas(64) inline constexpr auto RC_CONVERT_TAB = generate_rc_convert_table();
+
+using RollFunction = HASH_TYPE (*)(HASH_TYPE) noexcept;
+
+template<K_TYPE k, RollFunction roll_fn>
+[[nodiscard]] constexpr auto
+generate_kmer_table() noexcept
+{
+  constexpr char BASES[4] = { 'A', 'C', 'G', 'T' };
+  constexpr std::size_t TABLE_SIZE = 1 << (k * 2);
+  std::array<HASH_TYPE, TABLE_SIZE> table{};
+  for (std::size_t i = 0; i < TABLE_SIZE; ++i) {
+    HASH_TYPE hash = 0;
+    for (std::size_t pos = 0; pos < k; ++pos) {
+      const std::size_t shift = (k - 1 - pos) * 2;
+      const uint8_t b = (i >> shift) & 3;
+      hash = roll_fn(hash) ^ SEED_TAB[static_cast<unsigned char>(BASES[b])];
+    }
+    table[i] = hash;
+  }
+  return table;
+}
+
+} // namespace nthash::internal
+
+// --- END FILE: tables.hpp ---
 // --- BEGIN FILE: internal.hpp ---
 
 // --- END FILE: internal.hpp ---
@@ -250,6 +283,13 @@ generate_rollk_table(K_TYPE k) noexcept
   return table;
 }
 
+alignas(64) inline constexpr auto DIMER_TAB =
+  internal::generate_kmer_table<2, internal::roll_next>();
+alignas(64) inline constexpr auto TRIMER_TAB =
+  internal::generate_kmer_table<3, internal::roll_next>();
+alignas(64) inline constexpr auto TETRAMER_TAB =
+  internal::generate_kmer_table<4, internal::roll_next>();
+
 /**
  * Generate the forward-strand hash value of the first k-mer in the sequence.
  * @param seq C array containing the sequence's characters
@@ -259,12 +299,33 @@ generate_rollk_table(K_TYPE k) noexcept
 [[nodiscard]] inline constexpr HASH_TYPE
 base_forward_hash(const char* seq, K_TYPE k) noexcept
 {
-  HASH_TYPE h_val = 0;
-  for (K_TYPE i = 0; i < k; i++) {
-    const auto index = static_cast<unsigned char>(seq[i]);
-    h_val = internal::roll_next(h_val) ^ internal::SEED_TAB[index];
+  HASH_TYPE hash = 0;
+  size_t i = 0;
+  for (; i + 4 <= k; i += 4) {
+    const uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 3])];
+    hash = internal::roll_next(hash, 4) ^ TETRAMER_TAB[idx];
   }
-  return h_val;
+  const std::size_t rem = k - i;
+  if (rem == 3) {
+    const uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 4) |
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 2])];
+    hash = internal::roll_next(hash, rem) ^ TRIMER_TAB[idx];
+  } else if (rem == 2) {
+    const uint8_t idx =
+      (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 2) |
+      internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
+    hash = internal::roll_next(hash, rem) ^ DIMER_TAB[idx];
+  } else if (rem == 1) {
+    const auto idx = static_cast<unsigned char>(seq[i]);
+    hash = internal::roll_next(hash) ^ internal::SEED_TAB[idx];
+  }
+  return hash;
 }
 
 /**
@@ -277,13 +338,32 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
 [[nodiscard]] inline constexpr HASH_TYPE
 base_reverse_hash(const char* seq, K_TYPE k) noexcept
 {
-  HASH_TYPE h_val = 0;
-  for (K_TYPE i = 0; i < k; i++) {
-    const auto index =
-      static_cast<unsigned char>(seq[k - 1 - i]) & internal::CP_OFF;
-    h_val = nthash::internal::roll_next(h_val) ^ internal::SEED_TAB[index];
+  HASH_TYPE hash = 0;
+  const size_t remainder = k % 4;
+  if (remainder == 3) {
+    const uint8_t idx =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 4) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 3])];
+    hash = TRIMER_TAB[idx];
+  } else if (remainder == 2) {
+    const uint8_t idx =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])];
+    hash = DIMER_TAB[idx];
+  } else if (remainder == 1) {
+    const auto b0 = static_cast<unsigned char>(seq[k - 1]);
+    hash = internal::SEED_TAB[b0 & internal::CP_OFF];
   }
-  return h_val;
+  for (int i = static_cast<int>(k - remainder) - 1; i >= 3; i -= 4) {
+    const uint8_t index =
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 1])] << 4) |
+      (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 2])] << 2) |
+      internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 3])];
+    hash = internal::roll_next(hash, 4) ^ TETRAMER_TAB[index];
+  }
+  return hash;
 }
 
 /**
@@ -894,33 +974,56 @@ private:
 
 namespace nthash::legacy {
 
+using internal::ASCII_SIZE;
+using internal::HASH_BITS;
 using internal::HASH_TYPE;
 using internal::K_TYPE;
 
-template<K_TYPE k>
-[[nodiscard]] constexpr auto
-generate_kmer_table() noexcept
+constexpr HASH_TYPE MODULO_64 = 0x3F;
+
+alignas(64) inline constexpr auto DIMER_TAB =
+  internal::generate_kmer_table<2, internal::rotl>();
+alignas(64) inline constexpr auto TRIMER_TAB =
+  internal::generate_kmer_table<3, internal::rotl>();
+alignas(64) inline constexpr auto TETRAMER_TAB =
+  internal::generate_kmer_table<4, internal::rotl>();
+
+[[nodiscard]] inline constexpr auto
+generate_rotl_table(char b) noexcept
 {
-  constexpr char BASES[4] = { 'A', 'C', 'G', 'T' };
-  constexpr std::size_t TABLE_SIZE = 1 << (k * 2);
-  std::array<HASH_TYPE, TABLE_SIZE> table{};
-  for (std::size_t i = 0; i < TABLE_SIZE; ++i) {
-    HASH_TYPE hash = 0;
-    for (std::size_t pos = 0; pos < k; ++pos) {
-      const std::size_t shift = (k - 1 - pos) * 2;
-      const uint8_t b = (i >> shift) & 3;
-      const int d = k - 1 - pos;
-      hash ^= internal::rotl(
-        internal::SEED_TAB[static_cast<unsigned char>(BASES[b])], d);
-    }
-    table[i] = hash;
+  std::array<HASH_TYPE, HASH_BITS> table{};
+  for (unsigned i = 0; i < HASH_BITS; i++) {
+    table[i] = internal::rotl(internal::SEED_TAB[b], i);
   }
   return table;
 }
 
-alignas(64) inline constexpr auto DIMER_TAB = generate_kmer_table<2>();
-alignas(64) inline constexpr auto TRIMER_TAB = generate_kmer_table<3>();
-alignas(64) inline constexpr auto TETRAMER_TAB = generate_kmer_table<4>();
+alignas(64) inline constexpr auto VEC_A = generate_rotl_table('A');
+alignas(64) inline constexpr auto VEC_C = generate_rotl_table('C');
+alignas(64) inline constexpr auto VEC_G = generate_rotl_table('G');
+alignas(64) inline constexpr auto VEC_T = generate_rotl_table('T');
+alignas(64) inline constexpr auto VEC_N = generate_rotl_table('N');
+
+[[nodiscard]] inline constexpr auto
+generate_rotl_pointer_table() noexcept
+{
+  std::array<const std::array<HASH_TYPE, HASH_BITS>*, ASCII_SIZE> table{};
+  for (unsigned i = 0; i < ASCII_SIZE; ++i) {
+    table[i] = &VEC_N;
+  }
+  table['A'] = table['a'] = &VEC_A;
+  table['C'] = table['c'] = &VEC_C;
+  table['G'] = table['g'] = &VEC_G;
+  table['T'] = table['t'] = table['U'] = table['u'] = &VEC_T;
+  table['A' & internal::CP_OFF] = &VEC_T;
+  table['C' & internal::CP_OFF] = &VEC_G;
+  table['G' & internal::CP_OFF] = &VEC_C;
+  table['T' & internal::CP_OFF] = &VEC_A;
+  table['U' & internal::CP_OFF] = &VEC_A;
+  return table;
+}
+
+alignas(64) inline constexpr auto MS_TAB = generate_rotl_pointer_table();
 
 /**
  * Generate the forward-strand hash value of the first k-mer in the sequence.
@@ -932,7 +1035,7 @@ alignas(64) inline constexpr auto TETRAMER_TAB = generate_kmer_table<4>();
 base_forward_hash(const char* seq, K_TYPE k) noexcept
 {
   HASH_TYPE hash = 0;
-  std::size_t i = 0;
+  size_t i = 0;
   for (; i + 4 <= k; i += 4) {
     const uint8_t index =
       (internal::CONVERT_TAB[static_cast<unsigned char>(seq[i])] << 6) |
@@ -954,7 +1057,7 @@ base_forward_hash(const char* seq, K_TYPE k) noexcept
       internal::CONVERT_TAB[static_cast<unsigned char>(seq[i + 1])];
     hash = internal::rotl(hash, 2) ^ DIMER_TAB[idx];
   } else if (rem == 1) {
-    hash = internal::rotl(hash, 1) ^
+    hash = internal::rotl(hash) ^
            internal::SEED_TAB[static_cast<unsigned char>(seq[i])];
   }
   return hash;
@@ -972,24 +1075,20 @@ base_reverse_hash(const char* seq, K_TYPE k) noexcept
 {
   HASH_TYPE hash = 0;
   const auto remainder = k % 4;
-  int shift = 0;
   if (remainder == 3) {
     const uint8_t idx =
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 4) |
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])] << 2) |
       internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 3])];
-    hash ^= internal::rotl(TRIMER_TAB[idx], shift);
-    shift += 3;
+    hash = TRIMER_TAB[idx];
   } else if (remainder == 2) {
     const uint8_t idx =
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 1])] << 2) |
       internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[k - 2])];
-    hash ^= internal::rotl(DIMER_TAB[idx], shift);
-    shift += 2;
+    hash = DIMER_TAB[idx];
   } else if (remainder == 1) {
     const auto b0 = static_cast<unsigned char>(seq[k - 1]);
-    hash ^= internal::rotl(internal::SEED_TAB[b0 & internal::CP_OFF], shift);
-    shift += 1;
+    hash = internal::SEED_TAB[b0 & internal::CP_OFF];
   }
   for (int i = static_cast<int>(k - remainder) - 1; i >= 3; i -= 4) {
     const uint8_t index =
@@ -997,8 +1096,7 @@ base_reverse_hash(const char* seq, K_TYPE k) noexcept
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 1])] << 4) |
       (internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 2])] << 2) |
       internal::RC_CONVERT_TAB[static_cast<unsigned char>(seq[i - 3])];
-    hash ^= internal::rotl(TETRAMER_TAB[index], shift);
-    shift += 4;
+    hash = internal::rotl(hash, 4) ^ TETRAMER_TAB[index];
   }
   return hash;
 }
@@ -1018,8 +1116,8 @@ next_forward_hash(HASH_TYPE fh_val,
                   unsigned char char_out,
                   unsigned char char_in) noexcept
 {
-  const auto h_out = internal::rotl(internal::SEED_TAB[char_out], k);
-  return internal::rotl(fh_val, 1) ^ h_out ^ internal::SEED_TAB[char_in];
+  const auto h_out = (*MS_TAB[char_out])[k & MODULO_64];
+  return internal::rotl(fh_val) ^ h_out ^ internal::SEED_TAB[char_in];
 }
 
 /**
@@ -1039,8 +1137,8 @@ next_reverse_hash(HASH_TYPE rh_val,
                   unsigned char char_in) noexcept
 {
   const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
-  const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return internal::rotr(rh_val ^ h_out, 1) ^ internal::rotl(h_in, k - 1);
+  const auto h_in = (*MS_TAB[char_in & internal::CP_OFF])[k & MODULO_64];
+  return internal::rotr(rh_val ^ h_out ^ h_in);
 }
 
 /**
@@ -1059,8 +1157,8 @@ prev_forward_hash(HASH_TYPE fh_val,
                   unsigned char char_in) noexcept
 {
   const auto h_out = internal::SEED_TAB[char_out];
-  const auto h_in = internal::rotl(internal::SEED_TAB[char_in], k - 1);
-  return internal::rotr(fh_val ^ h_out, 1) ^ h_in;
+  const auto h_in = (*MS_TAB[char_in])[k & MODULO_64];
+  return internal::rotr(fh_val ^ h_out ^ h_in);
 }
 
 /**
@@ -1079,9 +1177,9 @@ prev_reverse_hash(HASH_TYPE rh_val,
                   unsigned char char_out,
                   unsigned char char_in) noexcept
 {
-  const auto h_out = internal::SEED_TAB[char_out & internal::CP_OFF];
   const auto h_in = internal::SEED_TAB[char_in & internal::CP_OFF];
-  return internal::rotl(rh_val ^ internal::rotl(h_out, k - 1), 1) ^ h_in;
+  const auto h_out = (*MS_TAB[char_out & internal::CP_OFF])[k & MODULO_64];
+  return internal::rotl(rh_val) ^ h_out ^ h_in;
 }
 
 } // namespace nthash::legacy
